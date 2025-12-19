@@ -35,7 +35,7 @@ def split_fieldname(fieldname: str):
 def split_unit(unit: Union[str, None]):
     if unit is None:
         return None, None
-    elif len(unit) > 1 and unit[0] in units._all_prefixes:
+    elif len(unit) > 1 and unit[0] in units.ALL_PREFIXES:
         prefix = unit[0]
         base_unit = unit[1:]
     else:

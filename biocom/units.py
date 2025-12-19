@@ -107,7 +107,7 @@ def get_scaled_value_and_prefix(value, min_factor: float = None, max_factor: flo
     return unit.raw_to_scaled(value), unit.char
     
 # Enumerate all possible prefix characters
-_all_prefixes = [get_prefix_char(v) for v in UnitPrefix.scale_map.values()]
+ALL_PREFIXES = [get_prefix_char(v) for v in UnitPrefix.scale_map.values()]
 
  
 class TimeUnit(object):

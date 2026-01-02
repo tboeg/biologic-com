@@ -1,16 +1,33 @@
+"""Signal filtering functions for electrochemical data processing.
+
+This module provides specialized filtering capabilities including:
+- Masked filtering for weighted data
+- NaN-aware filtering
+- Nonuniform Gaussian filtering with spatially-varying smoothing scales
+"""
+
 import numpy as np
 from scipy import ndimage
 
 
 
 def masked_filter(a, mask, filter_func=None, **filter_kw):
-    """
-    Perform a masked/normalized filter operation on a. Only valid for linear filters
-    :param ndarray a: array to filter
-    :param ndarray mask: mask array indicating weight of each pixel in x_in; must match shape of x_in
-    :param filter_func: filter function to apply. Defaults to gaussian_filter
-    :param filter_kw: keyword args to pass to filter_func
-    :return:
+    """Perform a masked/normalized filter operation on an array.
+    
+    Applies a linear filter with weighting based on a mask array. The filter is
+    normalized by the filtered mask to maintain proper weighting. Only valid for
+    linear filters.
+    
+    :param a: Array to filter
+    :type a: ndarray
+    :param mask: Mask array indicating weight of each element; must match shape of a
+    :type mask: ndarray
+    :param filter_func: Filter function to apply (defaults to gaussian_filter)
+    :type filter_func: callable, optional
+    :param filter_kw: Keyword arguments to pass to filter_func
+    :type filter_kw: dict, optional
+    :return: Filtered array with proper normalization
+    :rtype: ndarray
     """
     if filter_kw is None:
         if filter_func is None:
@@ -33,6 +50,20 @@ def masked_filter(a, mask, filter_func=None, **filter_kw):
 
 
 def nan_filter(a, filter_func, **filter_kw):
+    """Filter an array containing NaN values.
+    
+    Applies a filter operation while properly handling NaN values by treating
+    them as masked data. NaN positions are given zero weight in the filtering.
+    
+    :param a: Array to filter (may contain NaN values)
+    :type a: ndarray
+    :param filter_func: Filter function to apply
+    :type filter_func: callable
+    :param filter_kw: Keyword arguments to pass to filter_func
+    :type filter_kw: dict, optional
+    :return: Filtered array with NaN values properly handled
+    :rtype: ndarray
+    """
     mask = ~np.isnan(a)
     return masked_filter(np.nan_to_num(a), mask, filter_func, **filter_kw)
 
@@ -44,6 +75,33 @@ def nan_filter(a, filter_func, **filter_kw):
 def nonuniform_gaussian_filter1d(a, sigma, axis=-1,
                                  mode='reflect', cval=0.0, truncate=4, order=0,
                                  sigma_node_factor=1.5, min_sigma=0.25):
+    """Apply 1D Gaussian filter with varying length scale.
+    
+    Performs Gaussian filtering where the smoothing lengthscale (sigma) can vary
+    along the array. This is accomplished by filtering at multiple discrete sigma
+    values and averaging the results using weights based on the local sigma value.
+    
+    :param a: Input array to filter
+    :type a: ndarray
+    :param sigma: Smoothing scale for each position (same shape as a)
+    :type sigma: ndarray
+    :param axis: Axis along which to apply the filter
+    :type axis: int
+    :param mode: Mode for handling array borders ('reflect', 'constant', 'nearest', etc.)
+    :type mode: str
+    :param cval: Value to fill past edges when mode is 'constant'
+    :type cval: float
+    :param truncate: Truncate filter at this many standard deviations
+    :type truncate: float
+    :param order: Order of the derivative (0 = smoothing, 1 = first derivative, etc.)
+    :type order: int
+    :param sigma_node_factor: Spacing factor between discrete sigma nodes (in log space)
+    :type sigma_node_factor: float
+    :param min_sigma: Minimum effective sigma value (below this, no filtering applied)
+    :type min_sigma: float
+    :return: Filtered array
+    :rtype: ndarray
+    """
     if np.max(sigma) > 0:
         sigma = np.maximum(sigma, 1e-8)
         # Get sigma nodes

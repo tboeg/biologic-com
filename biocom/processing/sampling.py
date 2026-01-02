@@ -1,3 +1,9 @@
+"""Signal sampling and filtering utilities.
+
+Provides advanced signal processing functions for step detection, decimation,
+and adaptive filtering of time-series data.
+"""
+
 import numpy as np
 from numpy import ndarray
 import scipy.ndimage as ndi
@@ -13,13 +19,22 @@ from . import stats
 # Basic signal processing
 # =======================
 def find_steps(y, allow_consecutive=True, rthresh=20, athresh=1e-10):
-    """
-    Identify steps in signal
-    :param ndarray y: signal
-    :param bool allow_consecutive: if False, do not allow consecutive steps
-    :param float rthresh: relative threshold for identifying steps
-    :param float athresh: absolute threshold for step size
-    :return: step indices
+    """Identify step changes in a signal.
+    
+    Detects indices where the signal derivative exceeds threshold values,
+    indicating control steps in electrochemical experiments.
+    
+    :param y: Signal array
+    :type y: ndarray
+    :param allow_consecutive: If False, combine detected steps at 
+        consecutive indices into a single step. Defaults to True.
+    :type allow_consecutive: bool
+    :param rthresh: Relative threshold as multiple of median derivative
+    :type rthresh: float
+    :param athresh: Absolute threshold for step size
+    :type athresh: float
+    :return: Array of step indices
+    :rtype: ndarray
     """
     dy = np.diff(y)
     # Identify indices where diff exceeds threshold
@@ -37,11 +52,14 @@ def find_steps(y, allow_consecutive=True, rthresh=20, athresh=1e-10):
 
 
 def split_steps(x, step_index):
-    """
-    Split x by step indices
-    :param ndarray x: array to split
-    :param ndarray step_index: step indices
-    :return:
+    """Split array by step indices into segments.
+    
+    :param x: Array to split
+    :type x: ndarray
+    :param step_index: Step indices marking segment boundaries
+    :type step_index: ndarray
+    :return: List of array segments
+    :rtype: List[ndarray]
     """
     step_index = np.array(step_index)
     # Add start and end indices
@@ -54,11 +72,36 @@ def split_steps(x, step_index):
 
 
 def get_step_values(x, step_index, agg: str = "median"):
+    """Get aggregated value for each step.
+    
+    :param x: Signal array
+    :type x: ndarray
+    :param step_index: Step indices
+    :type step_index: ndarray
+    :param agg: Aggregation function name ('median', 'mean', etc.)
+    :type agg: str
+    :return: List of aggregated values per step
+    :rtype: List[float]
+    """
     splits = split_steps(x, step_index)
     return [getattr(np, agg)(s) for s in splits]
 
 
 def segment_step_values(x, step_index, rel_precision: float = 0.05):
+    """Segment step values into discrete levels.
+    
+    Rounds step values to identify unique control levels, useful for
+    grouping repeated measurements at the same nominal control value.
+    
+    :param x: Signal array
+    :type x: ndarray
+    :param step_index: Step indices
+    :type step_index: ndarray
+    :param rel_precision: Relative precision for rounding (fraction of min step)
+    :type rel_precision: float
+    :return: Array of rounded step values
+    :rtype: ndarray
+    """
     # Identify median signal values at each step
     x_vals = np.array(get_step_values(x, step_index))
     
@@ -73,12 +116,16 @@ def segment_step_values(x, step_index, rel_precision: float = 0.05):
 
 
 def step_times2index(times: ndarray, step_times: Union[list, ndarray]) -> ndarray:
-    """Convert step times to array indices
-
-    :param ndarray times: Sample times
-    :param Union[list, ndarray] step_times: Times at which control steps
-        were applied
-    :return ndarray: Sample indices corresponding to steps
+    """Convert step times to array indices.
+    
+    Finds the sample index at or immediately after each step time.
+    
+    :param times: Sample times array
+    :type times: ndarray
+    :param step_times: Times at which control steps were applied
+    :type step_times: Union[list, ndarray]
+    :return: Sample indices corresponding to steps
+    :rtype: ndarray
     """
     # Determine step index by getting measurement time closest to step time
     # Each step_index must start at or after step time - cannot start before
@@ -97,6 +144,20 @@ def remove_short_samples(
         times: ndarray,
         data: ndarray,
         min_step: Optional[float] = None):
+    """Remove short time steps from data.
+    
+    Filters out data points where the time delta is below a threshold,
+    typically used to remove EC-Lab glitches or transient artifacts.
+    
+    :param times: Time array
+    :type times: ndarray
+    :param data: Data array to filter
+    :type data: ndarray
+    :param min_step: Minimum time step (defaults to 90% of median)
+    :type min_step: Optional[float]
+    :return: Filtered data array
+    :rtype: ndarray
+    """
     if len(times) > 1:
         # Get time deltas
         dt = np.insert(np.diff(times), 0, np.inf)
@@ -116,6 +177,28 @@ def remove_short_samples(
 # ========================
 def select_decimation_interval(times, step_index, t_sample, init_samples, decimation_factor, max_t_sample,
                                target_size):
+    """Select decimation interval to achieve target data size.
+    
+    Automatically determines the initial decimation interval needed to reduce
+    data to approximately the target size.
+    
+    :param times: Time array
+    :type times: ndarray
+    :param step_index: Step indices
+    :type step_index: ndarray
+    :param t_sample: Sample period
+    :type t_sample: float
+    :param init_samples: Initial samples to keep
+    :type init_samples: int
+    :param decimation_factor: Multiplicative decimation factor
+    :type decimation_factor: float
+    :param max_t_sample: Maximum sampling interval
+    :type max_t_sample: float
+    :param target_size: Target number of output points
+    :type target_size: int
+    :return: Selected decimation interval
+    :rtype: int
+    """
     intervals = np.logspace(np.log10(2), np.log10(1000), 12).astype(int)
     sizes = [len(get_decimation_index(times, step_index, t_sample, init_samples,
                                       interval, decimation_factor, max_t_sample)
@@ -133,6 +216,28 @@ def select_decimation_interval(times, step_index, t_sample, init_samples, decima
 
 def get_decimation_index(times, step_index, t_sample, init_samples, decimation_interval, decimation_factor,
                          max_t_sample):
+    """Generate decimation indices for data downsampling.
+    
+    Creates indices for roughly log-time downsampling that preserves early 
+    transients while aggressively decimating later steady-state data.
+    
+    :param times: Time array
+    :type times: ndarray
+    :param step_index: Step indices
+    :type step_index: ndarray
+    :param t_sample: Sample period
+    :type t_sample: float
+    :param init_samples: Initial samples to keep uniformly
+    :type init_samples: int
+    :param decimation_interval: Initial decimation interval
+    :type decimation_interval: int
+    :param decimation_factor: Factor by which decimation increases
+    :type decimation_factor: float
+    :param max_t_sample: Maximum sampling interval in seconds
+    :type max_t_sample: float
+    :return: Array of indices to keep
+    :rtype: ndarray
+    """
     if init_samples is not None:
         # Get evenly spaced samples from period before first step
         init_index = np.unique(np.linspace(0, step_index[0] - 1, init_samples).round(0).astype(int))
@@ -213,6 +318,37 @@ def filter_chrono_signals(
         median_prefilter: bool = False,
         first_step_steady: bool = False,
         **kw):
+    """Apply adaptive anti-aliasing filter to chronoamperometry signals.
+    
+    Uses spatially-varying Gaussian filtering to smooth data before decimation,
+    with filter scale adapted to local transient time scales.
+    
+    :param times: Time array
+    :type times: ndarray
+    :param signals: List of signal arrays to filter
+    :type signals: List[ndarray]
+    :param step_index: Step indices
+    :type step_index: Union[List, ndarray]
+    :param decimate_index: Decimation indices for sigma calculation
+    :type decimate_index: Optional[ndarray]
+    :param sigma_factor: Factor controlling filter strength
+    :type sigma_factor: float
+    :param max_sigma: Maximum filter sigma in samples
+    :type max_sigma: Optional[float]
+    :param remove_outliers: Whether to detect and remove outliers
+    :type remove_outliers: bool
+    :param outlier_prior: Prior probability of outliers
+    :type outlier_prior: float
+    :param outlier_thresh: Threshold for outlier detection
+    :type outlier_thresh: float
+    :param median_prefilter: Apply median filter before Gaussian
+    :type median_prefilter: bool
+    :param first_step_steady: Treat first step as steady-state
+    :type first_step_steady: bool
+    :param kw: Additional arguments for nonuniform_gaussian_filter1d
+    :return: List of filtered signal arrays
+    :rtype: List[ndarray]
+    """
 
     signals_out = [s.copy() for s in signals]
     
@@ -287,6 +423,22 @@ def filter_chrono_signals(
 
 
 def sigma_from_decimate_index(y, step_index, decimate_index, truncate=4.0):
+    """Calculate filter sigma from decimation indices.
+    
+    Determines appropriate Gaussian filter width based on decimation spacing,
+    ensuring no aliasing occurs.
+    
+    :param y: Signal array
+    :type y: ndarray
+    :param step_index: Step indices
+    :type step_index: ndarray
+    :param decimate_index: Decimation indices
+    :type decimate_index: ndarray
+    :param truncate: Filter truncation in standard deviations
+    :type truncate: float
+    :return: Array of sigma values
+    :rtype: ndarray
+    """
     sigmas = np.zeros(len(y)) #+ 0.25
 
     # Determine distance to nearest sample
@@ -308,6 +460,21 @@ def sigma_from_decimate_index(y, step_index, decimate_index, truncate=4.0):
 
 
 def flag_outliers(y_raw, y_filt, thresh=0.75, p_prior=0.01):
+    """Flag outliers based on deviation from filtered signal.
+    
+    Uses Bayesian outlier detection comparing raw and filtered signals.
+    
+    :param y_raw: Raw signal array
+    :type y_raw: ndarray
+    :param y_filt: Filtered signal array
+    :type y_filt: ndarray
+    :param thresh: Probability threshold for flagging outliers
+    :type thresh: float
+    :param p_prior: Prior probability of outliers
+    :type p_prior: float
+    :return: Boolean array of outlier flags
+    :rtype: ndarray
+    """
     dev = y_filt - y_raw
     std = stats.robust_std(dev)
     sigma_out = np.maximum(np.abs(dev), 0.01 * std)

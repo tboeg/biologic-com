@@ -1,3 +1,10 @@
+"""Chronoamperometry and chronopotentiometry data processing.
+
+Provides functions for processing time-resolved current-voltage data from
+chrono techniques, including step detection, impedance extraction, and
+downsampling with anti-aliasing.
+"""
+
 import numpy as np
 from numpy import ndarray
 from enum import Enum, StrEnum
@@ -20,11 +27,27 @@ except ModuleNotFoundError:
 
 
 class ControlMode(StrEnum):
+    """Electrochemical control mode.
+    
+    :cvar GALV: Galvanostatic (constant current) control
+    :cvar POT: Potentiostatic (constant voltage) control
+    """
     GALV = "Galvanostatic"
     POT  = "Potentiostatic"
     
 
 def get_io_signals(i_signal, v_signal, mode: ControlMode):
+    """Get input and output signals based on control mode.
+    
+    :param i_signal: Current signal array
+    :type i_signal: ndarray
+    :param v_signal: Voltage signal array
+    :type v_signal: ndarray
+    :param mode: Control mode (galvanostatic or potentiostatic)
+    :type mode: ControlMode
+    :return: Tuple of (input_signal, output_signal)
+    :rtype: Tuple[ndarray, ndarray]
+    """
     if mode == ControlMode.GALV:
         s_in, s_out = i_signal, v_signal
     else:
@@ -42,6 +65,32 @@ def get_dc_step_values(
         min_agg_points: int = 5,
         agg: str = 'median',
         use_longest_step: bool = True):
+    """Extract steady-state current and voltage values from stepped signals.
+    
+    Identifies control steps and aggregates measurements from the end of each
+    step to estimate steady-state values.
+    
+    :param times: Time array
+    :type times: ndarray
+    :param i_signal: Current signal array
+    :type i_signal: ndarray
+    :param v_signal: Voltage signal array
+    :type v_signal: ndarray
+    :param mode: Control mode
+    :type mode: ControlMode
+    :param step_times: Explicit step times (if None, auto-detect)
+    :type step_times: Optional[Union[list, ndarray]]
+    :param window_fraction: Fraction of step to use for aggregation
+    :type window_fraction: float
+    :param min_agg_points: Minimum points to aggregate per step
+    :type min_agg_points: int
+    :param agg: Aggregation function name ('median', 'mean', etc.)
+    :type agg: str
+    :param use_longest_step: Use only the longest step at each control value
+    :type use_longest_step: bool
+    :return: List of [i_values, v_values] arrays
+    :rtype: List[ndarray]
+    """
     
     s_in, s_out = get_io_signals(i_signal, v_signal, mode)
     
@@ -91,6 +140,32 @@ def process_ivt_simple(
         agg: str = 'median',
         use_longest_step: bool = True
         ) -> LinearIV:
+    """Process I-V-t data using simple steady-state extraction.
+    
+    Extracts steady-state values from each control step and fits a linear
+    I-V relationship to determine impedance.
+    
+    :param times: Time array
+    :type times: ndarray
+    :param i_signal: Current signal array
+    :type i_signal: ndarray
+    :param v_signal: Voltage signal array
+    :type v_signal: ndarray
+    :param mode: Control mode
+    :type mode: ControlMode
+    :param step_times: Explicit step times (if None, auto-detect)
+    :type step_times: Optional[Union[list, ndarray]]
+    :param window_fraction: Fraction of step to use for aggregation
+    :type window_fraction: float
+    :param min_agg_points: Minimum points to aggregate per step
+    :type min_agg_points: int
+    :param agg: Aggregation function name
+    :type agg: str
+    :param use_longest_step: Use only the longest step at each control value
+    :type use_longest_step: bool
+    :return: Linear I-V model with impedance
+    :rtype: LinearIV
+    """
     
     step_agg_vals = get_dc_step_values(times, i_signal, v_signal, mode,
                        step_times, window_fraction, min_agg_points,
@@ -117,6 +192,27 @@ def process_ivt_drt(times,
         remove_short: bool = False,
         fit_kw = None,
         ) -> LinearIV:
+    """Process I-V-t data using Distribution of Relaxation Times (DRT) analysis.
+    
+    Uses hybrid-drt package to fit transient response and extract impedance
+    at the lowest frequency (longest time scale).
+    
+    :param times: Time array
+    :type times: ndarray
+    :param i_signal: Current signal array
+    :type i_signal: ndarray
+    :param v_signal: Voltage signal array
+    :type v_signal: ndarray
+    :param mode: Control mode
+    :type mode: ControlMode
+    :param remove_short: Remove short time steps before processing
+    :type remove_short: bool
+    :param fit_kw: Keyword arguments for DRT fitting
+    :type fit_kw: dict, optional
+    :return: Linear I-V model with impedance from DRT
+    :rtype: LinearIV
+    :raises RuntimeError: If hybrid-drt package is not installed
+    """
     
     if not _drt_available:
         raise RuntimeError("hybrid-drt must be installed to call process_ivt_drt")
@@ -186,6 +282,47 @@ def downsample_data(
         outlier_thresh: float = 0.75,
         **filter_kw
         ) -> Tuple[Tuple[ndarray, ndarray, ndarray], ndarray]:
+    """Downsample chronoamperometry/potentiometry data with anti-aliasing.
+    
+    Intelligently reduces data size while preserving transient features through
+    adaptive decimation and optional anti-aliasing filtering.
+    
+    :param times: Time array
+    :type times: ndarray
+    :param i_signal: Current signal array
+    :type i_signal: ndarray
+    :param v_signal: Voltage signal array
+    :type v_signal: ndarray
+    :param mode: Control mode
+    :type mode: ControlMode
+    :param target_size: Target number of output points
+    :type target_size: int
+    :param init_samples: Number of samples to keep before first step
+    :type init_samples: Union[int, None]
+    :param stepwise: Restart sampling at each step
+    :type stepwise: bool
+    :param step_index: Explicit step indices (if None, auto-detect)
+    :type step_index: Optional[ndarray]
+    :param decimation_interval: Initial decimation interval
+    :type decimation_interval: int
+    :param decimation_factor: Factor by which to increase decimation
+    :type decimation_factor: float
+    :param max_interval: Maximum sampling interval in seconds
+    :type max_interval: Optional[float]
+    :param antialiased: Apply anti-aliasing filter before decimation
+    :type antialiased: bool
+    :param remove_short: Remove short time steps
+    :type remove_short: bool
+    :param remove_outliers: Remove outliers before filtering
+    :type remove_outliers: bool
+    :param outlier_prior: Prior probability of outliers
+    :type outlier_prior: float
+    :param outlier_thresh: Threshold for outlier detection
+    :type outlier_thresh: float
+    :param filter_kw: Additional filtering parameters
+    :return: Tuple of ((times, i, v), sample_indices)
+    :rtype: Tuple[Tuple[ndarray, ndarray, ndarray], ndarray]
+    """
 
     # Remove short time steps
     if remove_short:

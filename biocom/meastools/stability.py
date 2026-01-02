@@ -1,8 +1,13 @@
+"""Sample stability monitoring tools.
+
+Provides functions for determining electrochemical sample stability based on
+single-frequency impedance measurements over time.
+"""
+
 import numpy as np
 from numpy import ndarray
 import scipy.ndimage as ndi
 from pathlib import Path
-import asyncio
 from collections import deque
 import time
 from typing import Callable, Optional, Union
@@ -24,6 +29,29 @@ def load_z_stability_test(
         v_vs: EweVs = EweVs.REF,
         bandwidth: Optional[Bandwidth] = None,
         **kwargs):
+    """Load impedance stability test settings.
+    
+    Configures single-frequency PEIS for repeated measurements to monitor
+    sample stability over time.
+    
+    :param server: EC-Lab COM server instance
+    :type server: OLECOM
+    :param device_channel: Target device channel
+    :type device_channel: DeviceChannel
+    :param mps_file: Path for MPS settings file
+    :type mps_file: Path
+    :param v_dc: DC voltage in V
+    :type v_dc: float
+    :param v_ac: AC voltage amplitude in V
+    :type v_ac: float
+    :param f: Measurement frequency in Hz
+    :type f: float
+    :param v_vs: Voltage reference
+    :type v_vs: EweVs
+    :param bandwidth: Amplifier bandwidth setting
+    :type bandwidth: Optional[Bandwidth]
+    :param kwargs: Additional parameters for PEISParameters
+    """
     if bandwidth is None:
         # Use highest available bandwidth
         bandwidth = Bandwidth(device_channel.model.max_bandwidth)
@@ -53,6 +81,26 @@ async def run_z_stability_test_async(
         window: int = 10,
         rate_thresh: float = 0.01
         ):
+    """Run impedance stability test asynchronously.
+    
+    Repeatedly measures impedance until stable or timeout. Stability is determined
+    by monitoring the rate of change of impedance magnitude.
+    
+    :param server: EC-Lab COM server instance
+    :type server: OLECOM
+    :param device_channel: Target device channel (settings must be pre-loaded)
+    :type device_channel: DeviceChannel
+    :param min_wait: Minimum wait time in seconds before checking stability
+    :type min_wait: float
+    :param timeout: Maximum wait time in seconds
+    :type timeout: float
+    :param window: Number of measurements to use for stability analysis
+    :type window: int
+    :param rate_thresh: Threshold for rate of change (fraction of |Z| per minute)
+    :type rate_thresh: float
+    :return: True if stable within timeout, False otherwise
+    :rtype: bool
+    """
     # assume that settings are already loaded
     z_log = deque()
     
@@ -92,6 +140,26 @@ def value_is_stable(
         filter_values: bool = True, 
         filter_func: Optional[Callable[[ndarray]]] = None,
         relative: bool = False):
+    """Determine if a time-series value has stabilized.
+    
+    Fits a linear trend to the data and checks if the rate of change is below
+    the specified threshold.
+    
+    :param times: Time points in seconds
+    :type times: Union[ndarray, list]
+    :param values: Measured values (can be 1D or 2D array)
+    :type values: Union[ndarray, list]
+    :param rate_thresh: Maximum acceptable rate of change per minute
+    :type rate_thresh: float
+    :param filter_values: Whether to apply Gaussian smoothing to reduce noise
+    :type filter_values: bool
+    :param filter_func: Custom filter function (defaults to Gaussian with sigma=1)
+    :type filter_func: Optional[Callable[[ndarray]]]
+    :param relative: Whether to normalize values by median before analysis
+    :type relative: bool
+    :return: True if rate of change is below threshold
+    :rtype: bool
+    """
     times = np.array(times)
     values = np.array(values)
     

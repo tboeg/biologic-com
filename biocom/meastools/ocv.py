@@ -1,16 +1,18 @@
+"""Open circuit voltage (OCV) measurement tools.
+
+Provides functions for running and reading OCV measurements using the COM interface.
+"""
+
 import numpy as np
-import asyncio
 from pathlib import Path
 from typing import Union
 
 from ..com.server import OLECOM, DeviceChannel
 from ..mps.techniques.sequence import TechniqueSequence
 from ..mps.techniques.ocv import OCVParameters
-from ..mps.common import EweVs, IRange, IVs, Bandwidth, BLDeviceModel, SampleType
+from ..mps.common import SampleType
 from ..mps import config as cfg
 from ..mpr import read_mpr
-
-
 
 
 def run_ocv(
@@ -20,6 +22,24 @@ def run_ocv(
         duration: float = 5, 
         dt: float = 0.1, 
         **kwargs):
+    """Run open circuit voltage measurement.
+    
+    Measures the equilibrium potential with no applied current.
+    
+    :param server: EC-Lab COM server instance
+    :type server: OLECOM
+    :param device_channel: Target device channel
+    :type device_channel: DeviceChannel
+    :param mps_file: Path for MPS settings file
+    :type mps_file: Path
+    :param duration: Measurement duration in seconds
+    :type duration: float
+    :param dt: Sampling interval in seconds
+    :type dt: float
+    :param kwargs: Additional parameters for OCVParameters
+    :return: Data filename
+    :rtype: str
+    """
 
     ocv = OCVParameters(
         duration,
@@ -34,20 +54,6 @@ def run_ocv(
     server.load_techniques(device_channel, seq, config, mps_file)
 
     server.run_channel(device_channel, mps_file)
-
-    # print_stats = ['Status', 'Technique number', 'Time', 'Connection', 'Result code']
-    # while time.monotonic() <= start + 30:
-    #     stat = ole.check_measure_status(device_id, channel)
-    #     print("Status at {:.3f} s:".format(time.monotonic() - start), {k: v for k, v in stat.items() if k in print_stats})
-    #     # is_running = ole.channel_is_running(device_id, channel)
-    #     # is_stopped = ole.channel_is_running(device_id, channel)
-    #     # print("Run status at {:.1f} s: {}".format(time.monotonic() - start, is_running))
-    #     # print("Stop status at {:.1f} s: {}".format(time.monotonic() - start, is_stopped))
-        
-    #     if stat['Status'] == 0 and time.monotonic() - start > 1.0:
-    #         break
-        
-    #     time.sleep(1.0)
 
     return server.get_data_filename(device_channel, 0)
 

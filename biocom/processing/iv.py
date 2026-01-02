@@ -1,8 +1,10 @@
 import numpy as np
 from numpy import ndarray
-from typing import Optional, Union
+from typing import Union
 
 class LinearIV(object):
+    """Linear current-voltage relationship model. Used for estimating current
+    or voltage amplitude given the other, based on a linear approximation around an operating point."""
     def __init__(self, i_mid: float, v_mid: float, dvdi: float):
         self.i_mid = i_mid
         self.v_mid = v_mid

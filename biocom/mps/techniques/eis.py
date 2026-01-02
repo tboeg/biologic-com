@@ -1,22 +1,22 @@
-from enum import Enum, StrEnum
-from dataclasses import dataclass, field
-from typing import Union, Optional
+"""Electrochemical Impedance Spectroscopy (EIS) technique parameters.
+
+This module provides parameter classes for configuring EIS measurements
+including PEIS (Potentiostatic EIS) and GEIS (Galvanostatic EIS). EIS
+measures impedance as a function of frequency by applying small AC signals.
+"""
+from enum import StrEnum
+from dataclasses import dataclass
+from typing import Union
 import numpy as np
-from numpy import ndarray
 
 from ... import units
-from .technique import HardwareParameters, TechniqueParameters, _hardware_param_map
+from .technique import HardwareParameters, TechniqueParameters, HARDWARE_PARAM_MAP
 from ..common import (
-    SentenceCaseEnum, EweVs, IVs, IRange, Bandwidth, get_i_range
+    SentenceCaseEnum, EweVs, IVs, IRange, get_i_range
 )
 from ..write_utils import format_duration
 from ...utils import merge_dicts
 
-
-# class ExcitationSignalMode(StrEnum):
-#     SINGLE = "Single sine"
-#     MULTI =  "Multi sine"
-    
 
 class FrequencySpacing(StrEnum):
     LIN = "Linear"
@@ -29,6 +29,13 @@ class PointDensity(StrEnum):
 GEISAmpVariable = SentenceCaseEnum("GEISAmpVariable", ["IA", "VA"])
 
 def parse_frequency(f: float):
+    """Parse frequency and select appropriate unit prefix.
+    
+    :param f: Frequency in Hz
+    :type f: float
+    :return: Scaled frequency value and unit string (e.g., 'kHz')
+    :rtype: Tuple[float, str]
+    """
     prefix = units.UnitPrefix.from_value(f)
     f_scaled = prefix.raw_to_scaled(f)
     return f_scaled, f'{prefix.prefix}Hz'
@@ -36,13 +43,15 @@ def parse_frequency(f: float):
 
 
 def get_freq_duration_scalar(f: float):
-    """Get measurement duration for a single frequencz
+    """Get measurement duration for a single frequency.
+    
+    Uses minimum period of 0.3s for frequencies above 5 Hz,
+    otherwise uses 1/f.
 
-    Args:
-        f (float): frequency
-
-    Returns:
-        float: duration in seconds
+    :param f: Frequency in Hz
+    :type f: float
+    :return: Duration in seconds
+    :rtype: float
     """
     # Frequency above which duration is fixed
     f_cut = 5
@@ -58,15 +67,20 @@ get_freq_duration = np.vectorize(get_freq_duration_scalar)
 def estimate_duration(f_min: float, f_max: float, points: int, average: int, wait: float, point_density: PointDensity = PointDensity.PPD) -> float:
     """Estimate the duration of an EIS measurement.
 
-    Args:
-        f_min (float): Minimum frequency
-        f_max (float): Maximum frequency
-        ppd (int): points per decade
-        average (int): Number of cycles to average
-        wait (float): Number of periods to wait between measurements
-
-    Returns:
-        float: Total duration in seconds
+    :param f_min: Minimum frequency (Hz)
+    :type f_min: float
+    :param f_max: Maximum frequency (Hz)
+    :type f_max: float
+    :param points: Number of points (per decade if PPD, total if TOT)
+    :type points: int
+    :param average: Number of cycles to average
+    :type average: int
+    :param wait: Number of periods to wait between measurements
+    :type wait: float
+    :param point_density: Point density mode (default: PPD)
+    :type point_density: PointDensity
+    :return: Total duration in seconds
+    :rtype: float
     """
     if point_density == PointDensity.PPD:
         n_decades = np.log10(f_max / f_min)
@@ -168,16 +182,6 @@ class _EISParameters(TechniqueParameters):
     def expected_duration(self):
         return estimate_duration(self.f_min, self.f_max, self.points, self.average, self.wait, point_density=self.point_density)
     
-            
-    # def param_str(self, name):
-    #     # Convert enums to values
-    #     val = getattr(self, name)
-    #     if isinstance(val, Enum):
-    #         return val.value
-    #     elif isinstance(val, bool):
-    #         return int(val)
-    #     return val
-    
     @property
     def _condition_time_formatted(self):
         return format_duration(self.condition_time)
@@ -225,7 +229,7 @@ class PEISParameters(HardwareParameters, _EISParameters):
             # "nr cycles": "nr_cycles",
             # "inc. cycle": "inc_cycle"
         },
-        _hardware_param_map,
+        HARDWARE_PARAM_MAP,
         {
             "nc cycles": "repeat",
             "goto Ns'": "goto_ns",

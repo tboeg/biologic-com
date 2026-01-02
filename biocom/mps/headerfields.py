@@ -1,3 +1,17 @@
+"""Header field formatting for BioLogic MPS files.
+
+This module provides classes for formatting header fields in EC-Lab settings
+files (.mps). Each field class handles the conversion of Python values to
+the specific text format expected by EC-Lab.
+
+The module includes field types for:
+    - Simple labeled values
+    - Optional fields (only written if non-default)
+    - Boolean checkbox fields
+    - File paths
+    - Multi-line text
+    - Ranges and multi-value fields
+"""
 from pathlib import Path
 from typing import Any, Union, Optional, List
 
@@ -5,6 +19,24 @@ from .common import BLDeviceModel, ReferenceElectrode
 from .write_utils import format_value
 
 class HeaderField(object):
+    """Base class for MPS file header fields.
+    
+    Handles formatting of labeled values for EC-Lab settings files with
+    configurable separators, units, precision, and device compatibility.
+    
+    :param label: Field label text
+    :type label: str
+    :param units: Optional unit string to append
+    :type units: Optional[str]
+    :param separator: Text between label and value (default: ' : ')
+    :type separator: str
+    :param precision: Number of decimal places for floats (default: 3)
+    :type precision: int
+    :param add_linebreak: Add extra newline after field (default: False)
+    :type add_linebreak: bool
+    :param devices: List of compatible devices, or None for all (default: None)
+    :type devices: Optional[List[BLDeviceModel]]
+    """
     def __init__(
             self, 
             label: str, 
@@ -22,6 +54,13 @@ class HeaderField(object):
         self.devices = devices
         
     def check_device(self, device: BLDeviceModel):
+        """Check if field applies to the specified device.
+        
+        :param device: BioLogic device model
+        :type device: BLDeviceModel
+        :return: True if field is compatible with device
+        :rtype: bool
+        """
         # Check if this field applies to the selected device
         if self.devices is not None:
             if device not in self.devices:
@@ -29,6 +68,14 @@ class HeaderField(object):
         return True
         
     def __call__(self, value, device: BLDeviceModel) -> str:
+        """Format field as text string for MPS file.
+        
+        :param value: Value to format
+        :param device: BioLogic device model
+        :type device: BLDeviceModel
+        :return: Formatted text string, or None if not applicable
+        :rtype: Optional[str]
+        """
         # If the field is not relevant to the device type,
         # return None
         if not self.check_device(device):
@@ -45,8 +92,25 @@ class HeaderField(object):
         return text
     
 class OptionalField(HeaderField):
-    # For fields that only appear if a non-default value is selected
-    # Example: reference electrode
+    """Header field that only appears for non-default values.
+    
+    Similar to HeaderField but suppresses output when value equals
+    the default value (e.g., reference electrode when set to None).
+    
+    :param label: Field label text
+    :type label: str
+    :param default_value: Value to suppress (field not written)
+    :param units: Optional unit string to append
+    :type units: Optional[str]
+    :param separator: Text between label and value (default: ' : ')
+    :type separator: str
+    :param precision: Number of decimal places for floats (default: 3)
+    :type precision: int
+    :param add_linebreak: Add extra newline after field (default: False)
+    :type add_linebreak: bool
+    :param devices: List of compatible devices, or None for all
+    :type devices: Optional[List[BLDeviceModel]]
+    """
     def __init__(
             self, 
             label: str, 
@@ -67,6 +131,17 @@ class OptionalField(HeaderField):
         return super().__call__(value, device)
     
 class CheckboxField(HeaderField):
+    """Header field for checkbox with variable value.
+    
+    Field only appears if checkbox is checked (value is not None),
+    and displays the associated value.
+    
+    :param value: Value to write, or None if unchecked
+    :param device: BioLogic device model
+    :type device: BLDeviceModel
+    :return: Formatted field text or None
+    :rtype: Optional[str]
+    """
     # For fields that appear only if a box is checked
     # and specify a variable value
     def __call__(self, value, device: BLDeviceModel) -> str:
@@ -76,6 +151,18 @@ class CheckboxField(HeaderField):
         return super().__call__(value, device)
     
 class BooleanCheckboxField(HeaderField):
+    """Header field for simple boolean checkbox.
+    
+    Field appears only if checkbox is checked (value is True),
+    displaying just the label with no additional value.
+    
+    :param label: Field label text
+    :type label: str
+    :param add_linebreak: Add extra newline after field (default: False)
+    :type add_linebreak: bool
+    :param devices: List of compatible devices, or None for all
+    :type devices: Optional[List[BLDeviceModel]]
+    """
     # For fields that appear only if a box is checked,
     # and always have the same value if checked
     def __init__(self, 
@@ -85,6 +172,15 @@ class BooleanCheckboxField(HeaderField):
         super().__init__(label, None, "", 1, add_linebreak, devices)
         
     def __call__(self, value: bool, device: BLDeviceModel) -> str:
+        """Format boolean checkbox field.
+        
+        :param value: True if checked, False otherwise
+        :type value: bool
+        :param device: BioLogic device model
+        :type device: BLDeviceModel
+        :return: Label text if checked, None otherwise
+        :rtype: Optional[str]
+        """
         if not value:
             # value of None of False indicates that box is not checked
             return None
@@ -94,20 +190,40 @@ class BooleanCheckboxField(HeaderField):
     
     
 class PathField(HeaderField):
+    """Header field for file paths.
+    
+    Automatically converts path to absolute path before formatting.
+    
+    :param value: File path (string or Path object)
+    :param device: BioLogic device model
+    :type device: BLDeviceModel
+    :return: Formatted field with absolute path
+    :rtype: Optional[str]
+    """
     def __call__(self, value, device: BLDeviceModel) -> str:
         value = Path(value).absolute()
         return super().__call__(value, device)
 
     
 class MultilineField(HeaderField):
+    """Header field for multi-line text values.
+    
+    Each line begins with the field label. Input can be either a list
+    of strings or a single string with newline characters.
+    """
     def __call__(self, value: Union[str, list], device: BLDeviceModel) -> str:
-        """Value can either be a list of strings, each of which will
-        appear on its own line, or a single string with line breaks.
-        In either case, each line will begin with the header label.
+        """Format multi-line field.
         
-        :param Union[str, list] value: String or list input
-        :param BLDeviceModel device: Device model
-        :return str: string to write
+        Value can either be a list of strings (each on its own line)
+        or a single string with line breaks. Each line will begin with
+        the header label.
+        
+        :param value: String with newlines or list of strings
+        :type value: Union[str, list]
+        :param device: BioLogic device model
+        :type device: BLDeviceModel
+        :return: Multi-line formatted text
+        :rtype: Optional[str]
         """
         if not self.check_device(device):
             return None
@@ -123,6 +239,29 @@ class MultilineField(HeaderField):
         return '\n'.join(lines)
     
 class RangeField(HeaderField):
+    """Header field for value ranges (min/max pairs).
+    
+    Formats two values as a range with customizable separators and labels.
+    
+    :param label: Main field label
+    :type label: str
+    :param range_separator: Text between min and max values
+    :type range_separator: str
+    :param min_label: Optional label before minimum value
+    :type min_label: Optional[str]
+    :param max_label: Optional label before maximum value
+    :type max_label: Optional[str]
+    :param separator: Text between label and range (default: ' : ')
+    :type separator: str
+    :param units: Unit string for both values
+    :type units: Optional[str]
+    :param precision: Number of decimal places (default: 3)
+    :type precision: int
+    :param add_linebreak: Add extra newline after field (default: False)
+    :type add_linebreak: bool
+    :param devices: List of compatible devices, or None for all
+    :type devices: Optional[List[BLDeviceModel]]
+    """
     def __init__(self, label: str, 
                  range_separator: str,
                  min_label: Optional[str] = None, 
@@ -152,6 +291,29 @@ class RangeField(HeaderField):
         return super().__call__(value_text, device)
     
 class MultivalueField(HeaderField):
+    """Header field for multiple labeled values.
+    
+    Formats multiple values with individual labels, separators, and units
+    in a single field.
+    
+    :param label: Main field label
+    :type label: str
+    :param value_labels: Label for each value
+    :type value_labels: List[str]
+    :param value_separators: Separator after each value (length = len(value_labels)-1)
+    :type value_separators: List[str]
+    :param value_units: Unit for each value (same length as value_labels)
+    :type value_units: List[str]
+    :param separator: Text between label and values (default: ' : ')
+    :type separator: str
+    :param precision: Number of decimal places (default: 3)
+    :type precision: int
+    :param add_linebreak: Add extra newline after field (default: False)
+    :type add_linebreak: bool
+    :param devices: List of compatible devices, or None for all
+    :type devices: Optional[List[BLDeviceModel]]
+    :raises ValueError: If value_units/value_separators length mismatch
+    """
     def __init__(self, label: str, 
                  value_labels: List[str],
                  value_separators: List[str],

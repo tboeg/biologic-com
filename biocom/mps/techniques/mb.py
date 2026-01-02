@@ -1,3 +1,15 @@
+"""Modulo Bat (MB) technique sequences for battery testing.
+
+This module provides comprehensive parameter classes for configuring Modulo Bat
+techniques in EC-Lab. MB techniques are advanced battery testing sequences with
+customizable limits, conditions, and data recording options.
+
+Modulo Bat supports complex testing protocols including:
+    - Multiple limit conditions (voltage, current, time, charge, etc.)
+    - Urban driving cycle simulation
+    - Advanced battery cycling protocols
+    - Multi-step sequences with varied conditions
+"""
 from enum import Enum, StrEnum, auto
 from dataclasses import dataclass, fields
 from collections import namedtuple
@@ -16,7 +28,7 @@ from ..common import (
     IRange, EweVs, IVs, get_i_range, Bandwidth, Filter, SentenceCaseEnum, TriggerType)
 from ..config import FullConfiguration
 from .technique import (
-    HardwareParameters, _hardware_param_map, _hardware_param_map_ilimit, _loop_param_map
+    HardwareParameters, HARDWARE_PARAM_MAP, HARDWARE_PARAM_MAP_ILIMIT, LOOP_PARAM_MAP
 )
 # from .eis import GEISAmpVariable, parse_frequency
 from .eis import estimate_duration, PointDensity
@@ -26,6 +38,31 @@ from ...utils import merge_dicts, isiterable
 
 
 class MBLimitType(SentenceCaseEnum):
+    """Limit/termination condition types for Modulo Bat.
+    
+    Defines available termination conditions for MB technique steps.
+    
+    :cvar TIME: Time limit
+    :cvar EWE: Working electrode potential
+    :cvar ECE: Counter electrode potential
+    :cvar EWE_ECE: Potential difference Ewe-Ece
+    :cvar I: Current
+    :cvar IABS: Absolute current
+    :cvar QABS: Absolute charge
+    :cvar POWER: Power
+    :cvar ENERGY: Absolute energy
+    :cvar DIDT: Current derivative dI/dt
+    :cvar DIDT_ABS: Absolute current derivative
+    :cvar DSOC: State of charge change
+    :cvar X: Stoichiometric coefficient
+    :cvar DEDT: Voltage derivative dE/dt
+    :cvar NEG_DE: Negative voltage change
+    :cvar DEDT_ABS: Absolute voltage derivative
+    :cvar T: Temperature
+    :cvar DTDT_ABS: Absolute temperature derivative
+    :cvar AUX1: Analog input 1
+    :cvar AUX2: Analog input 2
+    """
     TIME = auto()
     EWE = auto()
     ECE = auto()
@@ -50,7 +87,7 @@ class MBLimitType(SentenceCaseEnum):
     
 ThreshTypeConfig = namedtuple("ThreshTypeConfig", ["base_unit", "scale_value", "factor_range"])
 
-_limit_type_config = {
+LIMIT_TYPE_CONFIG = {
     MBLimitType.TIME: ThreshTypeConfig("s", True, None),
     MBLimitType.EWE: ThreshTypeConfig("V", True, (1e-3, 1)),
     MBLimitType.ECE: ThreshTypeConfig("V", True, (1e-3, 1)),
@@ -75,6 +112,11 @@ _limit_type_config = {
     
     
 class MBLimitComparison(Enum):
+    """Comparison operators for MB limit conditions.
+    
+    :cvar LT: Less than (<)
+    :cvar GT: Greater than (>)
+    """
     LT = "<"
     GT = ">"
     
@@ -139,11 +181,16 @@ class MBLimit(object):
             self.q_limit_type = MBLimitQ.QLIMIT
            
     def set_limit_value(self, value: float):
+        """Set the limit threshold value with automatic unit scaling.
+        
+        :param value: Threshold value in base units
+        :type value: float
+        """
         self._raw_value = value
         if self.limit_type == MBLimitType.TIME:
             self._value, self.value_unit = units.get_scaled_time(value)
         else:
-            config: ThreshTypeConfig = _limit_type_config[self.limit_type]
+            config: ThreshTypeConfig = LIMIT_TYPE_CONFIG[self.limit_type]
             if config.scale_value:
                 # Scale the limit value and get the corresponding prefix
                 factor_lims = config.factor_range if config.factor_range is not None else (None, None)
@@ -155,11 +202,22 @@ class MBLimit(object):
                 self.value_unit = config.base_unit
             
     def get_limit_value(self):
+        """Get the limit value in base units.
+        
+        :return: Limit threshold value in base units
+        :rtype: float
+        """
         return self._value
             
+    # Property for limit value with automatic unit scaling
     value = property(get_limit_value, set_limit_value)
     
     def copy(self):
+        """Create a copy of this MBLimit object.
+        
+        :return: New MBLimit instance with identical parameters
+        :rtype: MBLimit
+        """
         # Set optional inputs based on enums for appropriate initialization
         goto_seq = self.goto_seq if self.action == MBLimitAction.GOTO else None
         q_limit_type = self.q_limit_type if self.limit_type == MBLimitType.QABS else None
@@ -197,6 +255,11 @@ class MBRecordCriterion(object):
         self.value = value
         
     def set_value(self, value: float):
+        """Set the recording criterion value with automatic unit scaling.
+        
+        :param value: Recording interval/threshold in base units
+        :type value: float
+        """
         if self.record_type == MBRecordType.TIME:
             self._value, self.value_unit = units.get_scaled_time(value)
         else:
@@ -212,6 +275,11 @@ class MBRecordCriterion(object):
                 self.value_unit = config.base_unit
                 
     def get_value(self):
+        """Get the recording criterion value in base units.
+        
+        :return: Recording interval/threshold in base units
+        :rtype: float
+        """
         return self._value
                 
     value = property(get_value, set_value)
@@ -220,6 +288,11 @@ class MBRecordCriterion(object):
 
 @dataclass
 class MBParametersBase(object):
+    """Base class for Modulo Bat technique step parameters.
+    
+    Provides common fields and methods for all MB technique steps including
+    control parameters, limits, and recording criteria.
+    """
     technique_name = "Modulo Bat"
     abbreviation = "MB"
     
@@ -415,9 +488,25 @@ class MBParametersBase(object):
     
     @property 
     def num_steps(self):
+        """Number of steps in the MB sequence.
+        
+        :return: Number of control steps
+        :rtype: int
+        """
         return len(self.ctrl_type)
     
     def set_ctrl_val(self, ctrl_num: int, value: float, base_unit: str, scale_value: bool = True):
+        """Set a control parameter value with automatic unit scaling.
+        
+        :param ctrl_num: Control parameter number (1-5)
+        :type ctrl_num: int
+        :param value: Parameter value in base units
+        :type value: float
+        :param base_unit: Base unit for the parameter (e.g., 'V', 'A', 'Hz')
+        :type base_unit: str
+        :param scale_value: Whether to apply SI prefix scaling
+        :type scale_value: bool
+        """
         if scale_value:
             scaled_value, prefix = units.get_scaled_value_and_prefix(value)
         else:
@@ -428,6 +517,7 @@ class MBParametersBase(object):
         setattr(self, f"ctrl{ctrl_num}_val_unit", f"{prefix}{base_unit}")
     
     def reset_limits(self):
+        """Clear all limit conditions from this MB step."""
         # Clear all limits
         self.lim_nb = 0
         for i in range(1, 4):
@@ -446,10 +536,21 @@ class MBParametersBase(object):
             setattr(self, f"lim{self.lim_nb}_{name}", getattr(limit, lim_att))
             
     def set_limits(self, limits: List[MBLimit]):
+        """Set multiple limit conditions for this MB step.
+        
+        :param limits: List of limit conditions to add
+        :type limits: List[MBLimit]
+        """
         for limit in limits:
             self.add_limit(limit)
         
     def add_record_criterion(self, criterion: MBRecordCriterion):
+        """Add a recording criterion to this MB step.
+        
+        :param criterion: Recording criterion to add
+        :type criterion: MBRecordCriterion
+        :raises ValueError: If maximum number of recording criteria (3) is already set
+        """
         if self.rec_nb >= 3:
             raise ValueError("The maximum number of recording criteria (3) has already been set")
         
@@ -461,6 +562,7 @@ class MBParametersBase(object):
             setattr(self, f"rec{self.rec_nb}_{name}", getattr(criterion, rec_att))
             
     def reset_record_criteria(self):
+        """Clear all recording criteria from this MB step."""
         # Clear all recording criteria
         self.rec_nb = 0
         for i in range(1, 4):
@@ -468,6 +570,11 @@ class MBParametersBase(object):
                 setattr(self, f"rec{i}_{name}", None)
                 
     def set_record_criteria(self, record_criteria: List[MBRecordCriterion]):
+        """Set multiple recording criteria for this MB step.
+        
+        :param record_criteria: List of recording criteria to add
+        :type record_criteria: List[MBRecordCriterion]
+        """
         for crit in record_criteria:
             self.add_record_criterion(crit)
             
@@ -499,6 +606,19 @@ class MBParametersBase(object):
 # Constant Current
 # ==========================    
 class MBConstantCurrent(MBParametersBase):
+    """Constant current step for Modulo Bat technique.
+    
+    Applies a constant current until one or more limits is reached.
+    
+    :param current: Current value in A (positive for charge, negative for discharge)
+    :type current: float
+    :param limits: List of limit conditions for this step
+    :type limits: List[MBLimit]
+    :param record_criteria: List of recording criteria for data acquisition
+    :type record_criteria: List[MBRecordCriterion]
+    :param i_vs: Current reference type
+    :type i_vs: IVs
+    """
     def __init__(self, 
             current: float, 
             limits: List[MBLimit],
@@ -532,6 +652,19 @@ class MBConstantCurrent(MBParametersBase):
 # Constant Voltage
 # ==========================    
 class MBConstantVoltage(MBParametersBase):
+    """Constant voltage step for Modulo Bat technique.
+    
+    Applies a constant potential until one or more limits is reached.
+    
+    :param voltage: Voltage value in V
+    :type voltage: float
+    :param limits: List of limit conditions for this step
+    :type limits: List[MBLimit]
+    :param record_criteria: List of recording criteria for data acquisition
+    :type record_criteria: List[MBRecordCriterion]
+    :param v_vs: Voltage reference type
+    :type v_vs: EweVs
+    """
     def __init__(self, 
             voltage: float, 
             limits: List[MBLimit],
@@ -557,6 +690,20 @@ class MBConstantVoltage(MBParametersBase):
 # Urban profile
 # ==========================
 def make_urban_table(technique_number: int, sequence_number: int, profile: Union[Path, DataFrame]):
+    """Generate urban profile table text for MPS file.
+    
+    Creates a formatted table defining time-signal pairs for an urban profile
+    in the MPS file format.
+    
+    :param technique_number: Technique index in the MPS file
+    :type technique_number: int
+    :param sequence_number: Sequence index within the technique
+    :type sequence_number: int
+    :param profile: Urban profile data or path to CSV file
+    :type profile: Union[Path, DataFrame]
+    :return: Formatted urban profile table text
+    :rtype: str
+    """
     # Make table of time and signal values to define urban profile in mps file
     if not isinstance(profile, DataFrame):
         profile = pd.read_csv(profile)
@@ -583,6 +730,17 @@ def make_urban_table(technique_number: int, sequence_number: int, profile: Union
     
     
 class MBUrbanProfile(MBParametersBase):
+    """Urban profile step for Modulo Bat technique.
+    
+    Applies a time-varying current or voltage profile defined by tabulated data.
+    
+    :param profile: Profile data or path to CSV file with time-signal pairs
+    :type profile: Union[Path, DataFrame]
+    :param limits: List of limit conditions for this step
+    :type limits: List[MBLimit]
+    :param record_criteria: List of recording criteria for data acquisition
+    :type record_criteria: List[MBRecordCriterion]
+    """
     def __init__(self, 
             profile: Union[Path, DataFrame], 
             limits: List[MBLimit],
@@ -602,6 +760,15 @@ class MBUrbanProfile(MBParametersBase):
     
     # TODO: need to handle profile table in technique_sequence
     def profile_table(self, technique_number, sequence_number):
+        """Generate the profile table text for this urban profile.
+        
+        :param technique_number: Technique index in the MPS file
+        :type technique_number: int
+        :param sequence_number: Sequence index within the technique
+        :type sequence_number: int
+        :return: Formatted urban profile table text
+        :rtype: str
+        """
         table = make_urban_table(technique_number, sequence_number, self.profile)
         return table
     
@@ -610,11 +777,38 @@ class MBUrbanProfile(MBParametersBase):
 # ==========================
     
 class EISAmpUnit(StrEnum):
+    """AC amplitude unit for EIS in MB technique.
+    
+    :ivar V: Voltage amplitude in volts
+    :ivar A: Current amplitude in amperes
+    """
     V = "V"
     A = "A"
     
     
 class MBEISBase(MBParametersBase):
+    """Base class for EIS steps in Modulo Bat technique.
+    
+    Performs electrochemical impedance spectroscopy with the DC level held
+    at the last measured value.
+    
+    :param ctrl_type: Control type identifier (GEIS or PEIS)
+    :type ctrl_type: str
+    :param f_max: Maximum frequency in Hz
+    :type f_max: float
+    :param f_min: Minimum frequency in Hz
+    :type f_min: float
+    :param ac_amp: AC amplitude value
+    :type ac_amp: float
+    :param ac_amp_unit: AC amplitude unit (V or A)
+    :type ac_amp_unit: EISAmpUnit
+    :param ppd: Points per decade
+    :type ppd: int
+    :param limits: List of limit conditions (STOP action not allowed)
+    :type limits: List[MBLimit]
+    :param average: Number of averages per frequency point
+    :type average: int
+    """
     def __init__(self, 
             ctrl_type: str,
             f_max: float,
@@ -663,10 +857,35 @@ class MBEISBase(MBParametersBase):
         
     @property
     def expected_duration(self):
+        """Expected duration of the EIS measurement in seconds.
+        
+        :return: Estimated measurement duration in seconds
+        :rtype: float
+        """
         return estimate_duration(self.f_min, self.f_max, self.ppd, average=self.ctrl_Na, wait=0.0, point_density=PointDensity.PPD)
         
     
 class MBGEIS(MBEISBase):
+    """Galvanostatic EIS step for Modulo Bat technique.
+    
+    Performs EIS with AC current perturbation at constant DC current.
+    DC current is fixed at last measured value.
+    
+    :param f_max: Maximum frequency in Hz
+    :type f_max: float
+    :param f_min: Minimum frequency in Hz
+    :type f_min: float
+    :param ac_amp: AC amplitude value
+    :type ac_amp: float
+    :param ac_amp_unit: AC amplitude unit (V or A)
+    :type ac_amp_unit: EISAmpUnit
+    :param ppd: Points per decade
+    :type ppd: int
+    :param limits: List of limit conditions (STOP action not allowed)
+    :type limits: List[MBLimit]
+    :param average: Number of cycles to average per frequency point
+    :type average: int
+    """
     def __init__(self, 
             f_max: float,
             f_min: float,
@@ -690,6 +909,24 @@ class MBGEIS(MBEISBase):
         
         
 class MBPEIS(MBEISBase):
+    """Potentiostatic EIS step for Modulo Bat technique.
+    
+    Performs EIS with AC voltage perturbation at constant DC voltage.
+    DC voltage is fixed at last measured value.
+    
+    :param f_max: Maximum frequency in Hz
+    :type f_max: float
+    :param f_min: Minimum frequency in Hz
+    :type f_min: float
+    :param ac_amp: AC amplitude in V
+    :type ac_amp: float
+    :param ppd: Points per decade
+    :type ppd: int
+    :param limits: List of limit conditions (STOP action not allowed)
+    :type limits: List[MBLimit]
+    :param average: Number of cycles to average per frequency point
+    :type average: int
+    """
     def __init__(self, 
             f_max: float,
             f_min: float,
@@ -715,6 +952,15 @@ class MBPEIS(MBEISBase):
 # Rest (OCV)
 # ==========================
 class MBRest(MBParametersBase):
+    """Rest (OCV) step for Modulo Bat technique.
+    
+    Measures open circuit voltage with zero applied current.
+    
+    :param limits: List of limit conditions for this step
+    :type limits: List[MBLimit]
+    :param record_criteria: List of recording criteria for data acquisition
+    :type record_criteria: List[MBRecordCriterion]
+    """
     def __init__(self, 
             limits: List[MBLimit],
             record_criteria: List[MBRecordCriterion]
@@ -727,6 +973,16 @@ class MBRest(MBParametersBase):
 # Loop
 # ==========================
 class MBLoop(MBParametersBase):
+    """Loop control step for Modulo Bat technique.
+    
+    Returns to a sequence index multiple times.
+    
+    :param goto_seq: Sequence index to jump to
+    :type goto_seq: int
+    :param n_times: Number of times to repeat the loop. 
+        Total number of loop iterations will be n_times + 1.
+    :type n_times: int
+    """
     def __init__(self, goto_seq: int, n_times: int):
         super().__init__(ctrl_type="Loop", ctrl_seq=goto_seq, ctrl_repeat=n_times)
         
@@ -734,82 +990,60 @@ class MBLoop(MBParametersBase):
 # Triggers
 # ==========================     
 class MBTriggerIn(MBParametersBase):
+    """Trigger in step for Modulo Bat technique.
+    
+    Waits for an external trigger signal before proceeding.
+    
+    :param edge: Trigger edge type (rising or falling)
+    :type edge: TriggerType
+    """
     def __init__(self, edge=TriggerType.RISING):
         super().__init__(ctrl_type="TI", ctrl_trigger=edge)
         
 class MBTriggerOut(MBParametersBase):
+    """Trigger out step for Modulo Bat technique.
+    
+    Sends a trigger signal to external equipment.
+    
+    :param duration_s: Trigger pulse duration in seconds
+    :type duration_s: float
+    :param edge: Trigger edge type (rising or falling)
+    :type edge: TriggerType
+    """
     def __init__(self, duration_s: float, edge=TriggerType.RISING):
         scaled_duration, duration_unit = units.get_scaled_time(duration_s)
         super().__init__(ctrl_type="TO", ctrl_TO_t=scaled_duration, ctrl_TO_t_unit=duration_unit, ctrl_trigger=edge)
         
-        
-    
-    
-    
 
-# @dataclass
-# class MBSequence(HardwareParameters, MBParametersBase, StepwiseTechniqueParameters):
-    
-#     def __post_init__(self):
-#         # super().__post_init__()
-        
-#         # Process stepwise list arguments
-#         self.listify_attr("ctrl_type")
-#         # self.listify_attr("apply_ic")
-        
-#         self.listify_attr("i_range", replace_none=IRange.AUTO)
-#         for name in ["i_range_min", "i_range_max", "i_range_init"]:
-#             self.listify_attr(name, replace_none="Unset")
-        
-        
-#         for name in self.placeholders:
-#             self.listify_attr(name, replace_none="")
-        
-#         # # TODO: check IRange behavior. Should this be set based only on ac_amp?
-#         # if self.i_range is None:
-#         #     self.i_range = get_i_range(np.max(np.abs(self.step_currents)))
-        
-#     @classmethod
-#     def from_list(
-#         cls, 
-#         mb_list: List[MBParametersBase], 
-#         v_range_min: float = -10.0,
-#         v_range_max: float = 10.0,
-#         i_range: Optional[IRange] = None,
-#         i_range_min: Optional[IRange] = None,
-#         i_range_max: Optional[IRange] = None,
-#         i_range_init: Optional[IRange] = None,
-#         bandwidth: Bandwidth = Bandwidth.BW7,
-#         filtering: Filter = Filter.NONE,
-#         # auto_rest: bool = False
-#     ):
-#         # Make lists for all fields
-#         field_names = [f.name for f in fields(mb_list[0])]
-#         field_input = {
-#             k: [getattr(mb, k) for mb in mb_list] for k in field_names
-#         }
-        
-#         out = cls(
-#             **field_input, v_range_min=v_range_min, v_range_max=v_range_max, 
-#             i_range=i_range, i_range_min=i_range_min, i_range_max=i_range_max, i_range_init=i_range_init,
-#             bandwidth=bandwidth, filtering=filtering,
-#         )
-        
-        
-#         out.listify_attr("i_range", replace_none=IRange.AUTO)
-#         for name in ["i_range_min", "i_range_max", "i_range_init"]:
-#             out.listify_attr(name, replace_none="Unset")
-        
-        
-#         for name in field_names:
-#             if name not in ["i_range", "i_range_min", "i_range_max", "i_range_init"]:
-#                 out.listify_attr(name, replace_none="")
-                
-#         return out
-    
     
 @dataclass
 class MBSequence(HardwareParameters, MBParametersBase, StepwiseTechniqueParameters):
+    """Modulo Bat technique sequence containing multiple steps.
+    
+    Combines multiple MB step parameters (e.g. CC, CV, EIS, etc.) into an 
+    ordered technique sequence with hardware configuration.
+    
+    :param mb_list: List of MB step parameters
+    :type mb_list: List[MBParametersBase]
+    :param v_range_min: Minimum voltage range in V
+    :type v_range_min: float
+    :param v_range_max: Maximum voltage range in V
+    :type v_range_max: float
+    :param i_range: Current range (if single range for all steps)
+    :type i_range: Optional[IRange]
+    :param i_range_min: Minimum current range
+    :type i_range_min: Optional[IRange]
+    :param i_range_max: Maximum current range
+    :type i_range_max: Optional[IRange]
+    :param i_range_init: Initial current range
+    :type i_range_init: Optional[IRange]
+    :param bandwidth: Bandwidth setting
+    :type bandwidth: Bandwidth
+    :param filtering: Filtering mode
+    :type filtering: Filter
+    :param auto_rest: If True, return to open circuit between steps
+    :type auto_rest: bool
+    """
     _full_param_map = merge_dicts(
         {
             "Ns": "step_index",
@@ -878,7 +1112,7 @@ class MBSequence(HardwareParameters, MBParametersBase, StepwiseTechniqueParamete
             'rec3_value': 'rec3_value',
             'rec3_value_unit': 'rec3_value_unit',
         },
-        {k: _hardware_param_map_ilimit[k] for k in list(_hardware_param_map_ilimit.keys())[:-1]},
+        {k: HARDWARE_PARAM_MAP_ILIMIT[k] for k in list(HARDWARE_PARAM_MAP_ILIMIT.keys())[:-1]},
         {
             "auto rest": "auto_rest",
             "Bandwidth": "bandwidth"
@@ -933,10 +1167,20 @@ class MBSequence(HardwareParameters, MBParametersBase, StepwiseTechniqueParamete
            
     @property
     def max_lim_nb(self):
+        """Maximum number of limits used across all steps.
+        
+        :return: Maximum limit count (0-3)
+        :rtype: int
+        """
         return max(self.lim_nb)
     
     @property
     def max_rec_nb(self):
+        """Maximum number of recording criteria used across all steps.
+        
+        :return: Maximum recording criterion count (0-3)
+        :rtype: int
+        """
         return max(self.rec_nb)
                 
     @property
@@ -961,6 +1205,13 @@ class MBSequence(HardwareParameters, MBParametersBase, StepwiseTechniqueParamete
         return param_map
     
     def get_urban_tables(self, technique_number: int):
+        """Generate urban profile tables for all urban profile steps.
+        
+        :param technique_number: Technique index in the MPS file
+        :type technique_number: int
+        :return: List of formatted urban profile table texts
+        :rtype: List[str]
+        """
         tables = []
         for i, mb in enumerate(self.mb_list):
             if isinstance(mb, MBUrbanProfile):
@@ -968,15 +1219,17 @@ class MBSequence(HardwareParameters, MBParametersBase, StepwiseTechniqueParamete
                 
         return tables
                 
-        
-        
-        
-        
-        
 
 # TODO: provide a list of signal arrays or files
 @dataclass    
 class _MBUrbanProfileList():
+    """Internal base class for multiple urban profile sequences.
+    
+    :param profiles: List of profile data or paths to CSV files
+    :type profiles: List[Union[Path, DataFrame]]
+    :param record_dt: Recording time interval in seconds
+    :type record_dt: float
+    """
     
     profiles: List[Union[Path, DataFrame]]
     record_dt: float
@@ -984,6 +1237,11 @@ class _MBUrbanProfileList():
     
 @dataclass    
 class MBUrbanProfileList(MBSequence, _MBUrbanProfileList):
+    """Sequence of multiple urban profile steps for Modulo Bat technique.
+    
+    Simplifies creation of MB sequences containing only urban profiles with
+    identical recording settings.
+    """
     
     def __post_init__(self):
         
@@ -1004,6 +1262,15 @@ class MBUrbanProfileList(MBSequence, _MBUrbanProfileList):
             del self._param_map["Ns"]
         
     def param_text(self, technique_number, configuration: FullConfiguration):
+        """Generate complete parameter text including profile tables.
+        
+        :param technique_number: Technique index in the MPS file
+        :type technique_number: int
+        :param configuration: Full device configuration
+        :type configuration: FullConfiguration
+        :return: Complete parameter text with embedded profile tables
+        :rtype: str
+        """
         # Get main technique text
         text = super().param_text(technique_number, configuration)
         
@@ -1017,5 +1284,3 @@ class MBUrbanProfileList(MBSequence, _MBUrbanProfileList):
         
         
 
-
-# MBUrbanProfileList(profiles=['a', 'b'])

@@ -1,26 +1,35 @@
+"""Galvanostatic Cycling with Potential Limitation (GCPL) technique.
 
-from enum import Enum, StrEnum
-from dataclasses import dataclass, field
-import numpy as np
+This module provides parameter classes for configuring GCPL measurements,
+commonly used for battery cycling and electrochemical testing. GCPL applies
+constant current with voltage limits to prevent over-charging or over-discharging.
+"""
+
+from enum import Enum
+from dataclasses import dataclass
 from numpy import ndarray
-import datetime
 from typing import Union, Optional, List
 
 from .stepwise import StepwiseTechniqueParameters
 
-from ... import units
 from ..common import (
-    IRange, EweVs, IVs, get_i_range, DQUnits
+    IVs, get_i_range, DQUnits
 )
 from ..config import FullConfiguration, BatteryCharacteristics
 from .technique import (
-    HardwareParameters, _hardware_param_map, _hardware_param_map_ilimit, _loop_param_map
+    HardwareParameters, HARDWARE_PARAM_MAP, HARDWARE_PARAM_MAP_ILIMIT, LOOP_PARAM_MAP
 )
 from ..write_utils import format_duration
 from ...utils import merge_dicts, isiterable
 
 
 class CurrentSpec(Enum):
+    """Current specification mode for GCPL.
+    
+    :cvar I: Absolute current value
+    :cvar CDN: C-rate divided by N (C/N)
+    :cvar CTN: C-rate multiplied by N (C×N)
+    """
     I = "I"
     CDN = "C / N"
     CTN = "C x N"
@@ -28,6 +37,17 @@ class CurrentSpec(Enum):
     
     
 def convert_current_scalar(i_in: float, current_spec: CurrentSpec, q_theo: float):
+    """Convert current specification to absolute current.
+    
+    :param i_in: Input current or C-rate multiplier
+    :type i_in: float
+    :param current_spec: Current specification mode
+    :type current_spec: CurrentSpec
+    :param q_theo: Theoretical battery capacity (A·h)
+    :type q_theo: float
+    :return: Absolute current in A
+    :rtype: float
+    """
     # Get current in A based on battery capacity
     if current_spec == CurrentSpec.CTN:
         # i_in is N value (C x N)
@@ -41,6 +61,16 @@ def convert_current_scalar(i_in: float, current_spec: CurrentSpec, q_theo: float
     return i_A
 
 def convert_currents(i_in, current_spec: List[CurrentSpec], q_theo: float):
+    """Convert list of current specifications to absolute currents.
+    
+    :param i_in: Input currents or C-rate multipliers
+    :param current_spec: List of current specification modes
+    :type current_spec: List[CurrentSpec]
+    :param q_theo: Theoretical battery capacity (A·h)
+    :type q_theo: float
+    :return: List of absolute currents in A
+    :rtype: list
+    """
     if isiterable(i_in):
         i_in = list(i_in)
         
@@ -100,7 +130,7 @@ class _GCPLParameters(object):
             "I sign": "_i_signs_formatted",
             "t1 (h:m:s)": "_step_durations_formatted",
         },
-        {k: _hardware_param_map[k] for k in ["I Range", "Bandwidth"]},
+        {k: HARDWARE_PARAM_MAP[k] for k in ["I Range", "Bandwidth"]},
         {
             "dE1 (mV)": "dE1",
             "dt1 (s)": "dt1",
@@ -111,7 +141,7 @@ class _GCPLParameters(object):
             "dI/dt": "_dIdt_m_scaled",
             "dunit dI/dt": "_dIdt_m_unit",
         },
-        {k: _hardware_param_map[k] for k in ["E range min (V)", "E range max (V)"]},
+        {k: HARDWARE_PARAM_MAP[k] for k in ["E range min (V)", "E range max (V)"]},
         {
             "dq": "_dQ_scaled",
             "unit dq": "_dQ_unit",
@@ -126,7 +156,7 @@ class _GCPLParameters(object):
             "dtR (s)": "dt_R" ,
             "EL (V)": "E_L",
         },
-        _loop_param_map
+        LOOP_PARAM_MAP
     )
     
 @dataclass

@@ -1,23 +1,38 @@
-from enum import Enum, StrEnum
-from dataclasses import dataclass, field
-import numpy as np
-from numpy import ndarray
-import datetime
-from typing import Union, Optional, List
+"""Loop technique parameters for technique sequences.
 
-from .stepwise import StepwiseTechniqueParameters
+This module provides the LoopParameters class for creating loops within
+technique sequences, allowing techniques to be repeated a specified
+number of times.
+"""
+from dataclasses import dataclass
 
-from ... import units
-from ..common import (
-    IRange, EweVs, IVs, get_i_range
-)
 from .technique import TechniqueParameters
-from ..write_utils import format_duration
-from ...utils import merge_dicts, isiterable
 
 
 @dataclass
 class LoopParameters(TechniqueParameters):
+    """Loop technique for repeating technique sequences.
+    
+    Creates a loop that repeats from a specified technique number
+    back to a previous technique a given number of times.
+    
+    :param goto_Ne: Target technique number to loop to (1-indexed)
+    :type goto_Ne: int
+    :param nt: Number of times to repeat the loop
+    :type nt: int
+    
+    Example::
+    
+        # Loop techniques 2-4 three times
+        loop = LoopParameters(
+            goto_Ne=2,  # Go back to technique 2
+            nt=3        # Repeat 3 times
+        )
+    
+    Note:
+        The loop is typically added after the techniques to be repeated.
+        Technique numbering is 1-indexed as displayed in EC-Lab.
+    """
     goto_Ne: int
     nt: int
     

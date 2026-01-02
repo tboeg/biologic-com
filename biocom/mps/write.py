@@ -1,3 +1,11 @@
+"""MPS file writing and header generation.
+
+This module provides the main functions for writing complete EC-Lab settings
+files (.mps), including header generation and technique sequence formatting.
+
+The primary entry point is the write_techniques() function which combines
+configuration and technique data into a complete MPS file.
+"""
 from pathlib import Path
 from typing import Union, Optional, List
 
@@ -32,6 +40,22 @@ from .config import FullConfiguration
 def make_header(
         configuration: FullConfiguration
     ):
+    """Generate MPS file header text from configuration.
+    
+    Creates the complete header section of an EC-Lab settings file,
+    including basic configuration, hardware settings, safety limits,
+    cell characteristics, and recording options.
+    
+    :param configuration: Complete experiment configuration
+    :type configuration: FullConfiguration
+    :return: Formatted header text
+    :rtype: str
+    :raises TypeError: If sample_characteristics is not a recognized type
+    
+    Note:
+        The header format and field order must match EC-Lab's expectations
+        for the file to load correctly.
+    """
 
     basic_config = configuration.basic
     hardware_settings = configuration.hardware
@@ -190,6 +214,44 @@ def write_techniques(
         configuration: FullConfiguration,
         mps_file: Union[str, Path]
     ):  
+    """Write complete MPS settings file.
+    
+    Generates and writes a complete EC-Lab settings file (.mps) from
+    technique sequence and configuration. The file includes the header
+    (configuration) and technique parameter sections.
+    
+    :param techniques: Sequence of electrochemical techniques
+    :type techniques: TechniqueSequence
+    :param configuration: Complete experiment configuration
+    :type configuration: FullConfiguration
+    :param mps_file: Output file path for MPS file
+    :type mps_file: Union[str, Path]
+    
+    Example::
+    
+        from biocom.mps import write_techniques, set_defaults
+        from biocom.mps.techniques.sequence import TechniqueSequence
+        from biocom.mps.techniques.ocv import OCVParameters
+        from biocom.mps.common import BLDeviceModel, SampleType
+        
+        # Create technique sequence
+        ocv = OCVParameters(duration=10.0)
+        sequence = TechniqueSequence([ocv])
+        
+        # Create configuration
+        config = set_defaults(
+            BLDeviceModel.SP150,
+            sequence,
+            SampleType.BATTERY
+        )
+        
+        # Write MPS file
+        write_techniques(sequence, config, "experiment.mps")
+    
+    Note:
+        This function automatically updates the configuration's filename
+        field and applies configuration to techniques that need it.
+    """  
     # if not isinstance(techniques, TechniqueParameters):
     #     if not isinstance(techniques, list):
     #         # Single technique provided - place in list

@@ -1,4 +1,3 @@
-# import pandas as pd
 # One-time script for processing technique codes from documentation
 
 with open('technique_codes.txt', 'r') as f:

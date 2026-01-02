@@ -1,76 +1,78 @@
-from enum import StrEnum
-from dataclasses import dataclass, field
+"""Chronoamperometry and Chronopotentiometry technique parameters.
+
+This module provides parameter classes for chronoamperometric (CA) and
+chronopotentiometric (CP) techniques. These time-based electrochemical methods
+apply constant voltage (CA) or current (CP) and record the response.
+"""
+from dataclasses import dataclass
 import numpy as np
 from numpy import ndarray
-import datetime
 from typing import Union, Optional, List
 
 from .stepwise import StepwiseTechniqueParameters
 
-from ... import units
 from ..common import (
     IRange, EweVs, IVs, DQUnits, get_i_range
 )
 from .technique import (
-    HardwareParameters, _hardware_param_map, _hardware_param_map_ilimit, _loop_param_map
+    HardwareParameters, HARDWARE_PARAM_MAP, HARDWARE_PARAM_MAP_ILIMIT, LOOP_PARAM_MAP
 )
 from ..write_utils import format_duration
-from ...utils import merge_dicts, isiterable
+from ...utils import merge_dicts
 
-
-    # mAH = "mA.h"
-    
-    
-# def process_list_values(vals: list, base_unit: Optional[str], replace_none=None):
-#     scaled_vals = [units.get_scaled_value(v) for v in vals]
-#     unit = [units.get_prefix_char(v) + base_unit for v in vals]
-    
-#     if replace_none is not None:
-#         # Replace Nones with specified value
-#         scaled_vals = [v or replace_none for v in scaled_vals]
-        
-#     return scaled_vals, unit
-    
+   
     
 class ChronoParametersBase(object):
+    """Base class for stepwise chronoamperometry/chronopotentiometry.
+    
+    Provides common properties for techniques with multiple time-based steps.
+    
+    :ivar step_durations: Duration of each step (seconds)
+    :vartype step_durations: list
+    """
     step_durations: list
     
     @property
     def num_steps(self):
+        """Get number of steps in technique.
+        
+        :return: Number of steps
+        :rtype: int
+        """
         return len(self.step_durations)
     
-    # def listify_attr(self, name: str, base_unit: str = None, replace_none=None):
-    #     """Format stepwise attribute as list.
-
-    #     :param str name: Attribute name.
-    #     :param str base_unit: base unit (e.g. V, A, C). If provided, 
-    #         appropriate unit prefixes will be selected and values
-    #         will be scaled accordingly. The scaled values and prefixed
-    #         units will be stored in _{name}_scaled and _{name}_units,
-    #         respectively. Defaults to None (no scaling).
-    #     :param Any replace_none: If provided, replace None with this 
-    #         value. Defaults to None (no replacement).
-    #     """
-    #     vals = getattr(self, name)
-        
-    #     if not isiterable(vals) or isinstance(vals, str):
-    #         # Convert scalar to list
-    #         vals = [vals or replace_none] * self.num_steps
-    #     elif replace_none is not None:
-    #         # Replace Nones
-    #         vals = [v or replace_none for v in vals]
-            
-    #     setattr(self, name, vals)
-        
-    #     if base_unit is not None:
-    #         # Scale values and get units
-    #         scaled_vals, unit = process_list_values(vals, base_unit)
-    #         setattr(self, f"_{name}_scaled", scaled_vals)
-    #         setattr(self, f"_{name}_unit", unit)
     
 
 @dataclass
 class _CPParameters(object):
+    """Internal CP (Chronopotentiometry) parameter storage.
+    
+    Base class containing CP-specific parameters. Used with multiple
+    inheritance to combine with HardwareParameters.
+    
+    :param step_currents: Applied current for each step (A)
+    :type step_currents: Union[list, ndarray]
+    :param step_durations: Duration of each step (seconds)
+    :type step_durations: Union[list, ndarray]
+    :param record_dt: Recording time interval (seconds)
+    :type record_dt: Union[float, List[float]]
+    :param i_vs: Current measurement reference (default: IVs.NONE)
+    :type i_vs: Union[IVs, List[IVs]]
+    :param v_limits: Voltage limits for each step (V)
+    :type v_limits: Optional[List[float]]
+    :param dq_limits: Charge limits for each step
+    :type dq_limits: Optional[List[float]]
+    :param dq_units: Units for charge limits (default: DQUnits.AH)
+    :type dq_units: DQUnits
+    :param record_average: Record averaged voltage if True (default: False)
+    :type record_average: bool
+    :param record_dv_mV: Voltage change threshold for recording (mV, default: 0.0)
+    :type record_dv_mV: float
+    :param goto_ns: Loop target step number (default: 0)
+    :type goto_ns: int
+    :param nc_cycles: Number of loop cycles (default: 0)
+    :type nc_cycles: int
+    """
     step_currents: Union[list, ndarray]
     step_durations: Union[list, ndarray]
     record_dt: Union[float, List[float]]
@@ -102,12 +104,54 @@ class _CPParameters(object):
             'dEs (mV)': 'record_dv_mV',
             'dts (s)': 'record_dt' 
         },
-        _hardware_param_map,
-        _loop_param_map
+        HARDWARE_PARAM_MAP,
+        LOOP_PARAM_MAP
     )
     
 @dataclass
 class CPParameters(HardwareParameters, _CPParameters, ChronoParametersBase, StepwiseTechniqueParameters):
+    """Chronopotentiometry (CP) technique parameters.
+    
+    Configures a chronopotentiometry measurement that applies constant current
+    and records the resulting voltage response. Supports multiple sequential
+    current steps.
+    
+    :param step_currents: Applied current for each step (A)
+    :type step_currents: Union[list, ndarray]
+    :param step_durations: Duration of each step (seconds)
+    :type step_durations: Union[list, ndarray]
+    :param record_dt: Recording time interval (seconds)
+    :type record_dt: Union[float, List[float]]
+    :param i_vs: Current measurement reference (default: IVs.NONE)
+    :type i_vs: Union[IVs, List[IVs]]
+    :param v_limits: Voltage limits for each step (V, optional)
+    :type v_limits: Optional[List[float]]
+    :param dq_limits: Charge limits for each step (optional)
+    :type dq_limits: Optional[List[float]]
+    :param dq_units: Units for charge limits (default: A·h)
+    :type dq_units: DQUnits
+    :param record_average: Record averaged voltage if True (default: False)
+    :type record_average: bool
+    :param record_dv_mV: Voltage change threshold for recording (mV, default: 0.0)
+    :type record_dv_mV: float
+    
+    Example::
+    
+        # Single-step CP at 10 µA for 100 seconds
+        cp = CPParameters(
+            step_currents=[10e-6],
+            step_durations=[100.0],
+            record_dt=1.0
+        )
+        
+        # Multi-step CP with voltage limits
+        cp_multi = CPParameters(
+            step_currents=[10e-6, -10e-6, 10e-6],
+            step_durations=[50.0, 50.0, 50.0],
+            record_dt=1.0,
+            v_limits=[1.0, -1.0, 1.0]
+        )
+    """
     
     def __post_init__(self):
         # super().__post_init__()
@@ -140,20 +184,11 @@ class CPParameters(HardwareParameters, _CPParameters, ChronoParametersBase, Step
             self._param_map = self._param_map.copy()
             del self._param_map["Ns"]
             
-        # Process lists
-        # self._step_currents_scaled, self._step_currents_unit = process_list_values(self.step_currents, "A")
-        # self._dq_limits_scaled, self._dq_limits_unit = process_list_values(self.dq_limits, self.dq_units.value)
-
-        
     @property
     def _record(self):
         if self.record_average:
             return "<Ewe>"
         return "Ewe"
-    
-    # @property
-    # def _record_dv_mv(self):
-    #     return self.record_dv * 1000.0
    
     @property
     def _step_durations_formatted(self):
@@ -162,6 +197,38 @@ class CPParameters(HardwareParameters, _CPParameters, ChronoParametersBase, Step
 
 @dataclass
 class _CAParameters(object):
+    """Internal CA (Chronoamperometry) parameter storage.
+    
+    Base class containing CA-specific parameters. Used with multiple
+    inheritance to combine with HardwareParameters.
+    
+    :param step_voltages: Applied voltage for each step (V)
+    :type step_voltages: Union[list, ndarray]
+    :param step_durations: Duration of each step (seconds)
+    :type step_durations: Union[list, ndarray]
+    :param record_dt: Recording time interval (seconds)
+    :type record_dt: Union[float, List[float]]
+    :param v_vs: Voltage measurement reference (default: EweVs.REF)
+    :type v_vs: Union[EweVs, List[EweVs]]
+    :param i_limits_min: Minimum current limits for each step (A)
+    :type i_limits_min: Optional[List[float]]
+    :param i_limits_max: Maximum current limits for each step (A)
+    :type i_limits_max: Optional[List[float]]
+    :param dq_limits: Charge limits for each step
+    :type dq_limits: Optional[List[float]]
+    :param dq_units: Units for charge limits (default: DQUnits.AH)
+    :type dq_units: DQUnits
+    :param record_average: Record averaged current if True (default: False)
+    :type record_average: bool
+    :param record_di: Current change threshold for recording (A, default: 0.0)
+    :type record_di: float
+    :param record_dq: Charge change threshold for recording (default: 0.0)
+    :type record_dq: float
+    :param goto_ns: Loop target step number (default: 0)
+    :type goto_ns: int
+    :param nc_cycles: Number of loop cycles (default: 0)
+    :type nc_cycles: int
+    """
     step_voltages: Union[list, ndarray]
     step_durations: Union[list, ndarray]
     record_dt: Union[float, List[float]]
@@ -201,13 +268,59 @@ class _CAParameters(object):
             'dt (s)': 'record_dt',
             'dta (s)': 'record_dt'
         },
-        _hardware_param_map_ilimit,
-        _loop_param_map
+        HARDWARE_PARAM_MAP_ILIMIT,
+        LOOP_PARAM_MAP
     )
     
     
 @dataclass
 class CAParameters(HardwareParameters, _CAParameters, ChronoParametersBase, StepwiseTechniqueParameters):
+    """Chronoamperometry/Chronocoulometry (CA) technique parameters.
+    
+    Configures a chronoamperometry measurement that applies constant voltage
+    and records the resulting current response. Supports multiple sequential
+    voltage steps and current limiting.
+    
+    :param step_voltages: Applied voltage for each step (V)
+    :type step_voltages: Union[list, ndarray]
+    :param step_durations: Duration of each step (seconds)
+    :type step_durations: Union[list, ndarray]
+    :param record_dt: Recording time interval (seconds)
+    :type record_dt: Union[float, List[float]]
+    :param v_vs: Voltage measurement reference (default: REF)
+    :type v_vs: Union[EweVs, List[EweVs]]
+    :param i_limits_min: Minimum current limits (A, optional)
+    :type i_limits_min: Optional[List[float]]
+    :param i_limits_max: Maximum current limits (A, optional)
+    :type i_limits_max: Optional[List[float]]
+    :param dq_limits: Charge limits for each step (optional)
+    :type dq_limits: Optional[List[float]]
+    :param dq_units: Units for charge limits (default: A·h)
+    :type dq_units: DQUnits
+    :param record_average: Record averaged current if True (default: False)
+    :type record_average: bool
+    :param record_di: Current change threshold for recording (A, default: 0.0)
+    :type record_di: float
+    :param record_dq: Charge change threshold (default: 0.0)
+    :type record_dq: float
+    
+    Example::
+    
+        # Single-step CA at 0.5 V for 200 seconds
+        ca = CAParameters(
+            step_voltages=[0.5],
+            step_durations=[200.0],
+            record_dt=0.5
+        )
+        
+        # Multi-step CA with current limits
+        ca_multi = CAParameters(
+            step_voltages=[0.0, 0.5, 1.0],
+            step_durations=[100.0, 100.0, 100.0],
+            record_dt=1.0,
+            i_limits_max=[1e-3, 1e-3, 1e-3]
+        )
+    """
     
     def __post_init__(self):
         # super().__post_init__()
@@ -252,21 +365,11 @@ class CAParameters(HardwareParameters, _CAParameters, ChronoParametersBase, Step
             self._param_map = self._param_map.copy()
             del self._param_map["Ns"]
             
-        # Process lists
-        # self._step_currents_scaled, self._step_currents_unit = process_list_values(self.step_currents, "A")
-        # self._dq_limits_scaled, self._dq_limits_unit = process_list_values(self.dq_limits, self.dq_units.value)
-    
-
-        
     @property
     def _record(self):
         if self.record_average:
             return "<I>"
         return "I"
-    
-    # @property
-    # def _record_dv_mv(self):
-    #     return self.record_dv * 1000.0
    
     @property
     def _step_durations_formatted(self):

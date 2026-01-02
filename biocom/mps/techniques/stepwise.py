@@ -1,3 +1,9 @@
+"""Base classes for stepwise electrochemical techniques.
+
+This module provides base functionality for techniques that use multiple
+sequential steps, such as chronoamperometry and chronopotentiometry.
+Handles list processing, unit scaling, and parameter formatting.
+"""
 from numpy import ndarray
 from typing import Optional
 
@@ -9,6 +15,19 @@ from ... import units
 
 
 def process_list_values(vals: list, base_unit: Optional[str], replace_none=None):
+    """Process list values with unit scaling.
+    
+    Applies appropriate SI prefix scaling to values and generates
+    corresponding unit strings.
+    
+    :param vals: List of values to process
+    :type vals: list
+    :param base_unit: Base unit (e.g., 'V', 'A', 'C')
+    :type base_unit: Optional[str]
+    :param replace_none: Value to replace None entries (default: None)
+    :return: Tuple of (scaled_values, unit_strings)
+    :rtype: Tuple[list, list]
+    """
     scaled_vals = [units.get_scaled_value(v) for v in vals]
     unit = [units.get_prefix_char(v) + base_unit for v in vals]
     
@@ -57,8 +76,17 @@ def process_list_values(vals: list, base_unit: Optional[str], replace_none=None)
             
             
 class StepwiseTechniqueParameters(TechniqueParameters):
-    """Base class for stepwise techniques like chronoamperometry, 
-    chronopotentiometry, etc."""
+    """Base class for stepwise techniques.
+    
+    Provides utilities for handling multi-step techniques like
+    chronoamperometry and chronopotentiometry.
+    Manages list parameter processing, unit scaling, and step indexing.
+    
+    Note:
+        Subclasses should define num_steps property and call listify_attr()
+        in __post_init__ to process stepwise parameters.
+    """ 
+    
     num_steps: int
 
     @property

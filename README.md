@@ -11,5 +11,5 @@ The OLECOM interface allows you to execute experiments through EC-Lab, which ens
 To use `biologic-com` to control EC-Lab, you first need to register EC-Lab as an OLECOM server by following the procedure in Section 2 of the included OLECOM PDF manual.
 
 ## Documentation
-Documentation and examples will be added soon.
+Example scripts for mps file creation and measurement execution are provided in the examples folder.
 

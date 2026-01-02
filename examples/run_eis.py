@@ -24,7 +24,7 @@ if __name__ == "__main__":
     # Make TechniqueParameters instances to configure the measurements
     
     ocv_params = OCVParameters(
-        10.0, # Duratin (s)
+        10.0, # Duration (s)
         1.0, # Sample period (s)
     )
     
@@ -46,9 +46,6 @@ if __name__ == "__main__":
     
     # Filename in which to write mps file
     mps_file = datadir.joinpath("OCV-PEIS.mps")
-    
-    # # Write the settings to an mps file (optional, mostly for testing - the mps file will be created below by server.load_techniques)
-    # sequence.write_params(mps_file)
 
     # Create a server instance to communicate with EC-Lab
     server = OLECOM()

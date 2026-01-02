@@ -9,6 +9,15 @@ from . import units
 from .utils import split_list
 
 def read_mpr(file: Union[str, Path], unscale: bool = False):
+    """Read a BioLogic .mpr data file and return an MPRfile object.
+    
+    :param file: Path to the .mpr file
+    :type file: str or Path
+    :param bool unscale: If True, convert all scaled units (e.g., mA, mV)
+    to base units (A, V). Defaults to False
+    :return: MPRfile object containing the file data
+    :rtype: galvani.BioLogic.MPRfile
+    """
     file = Path(file)
     mpr = MPRfile(file.__str__())
     
@@ -20,6 +29,15 @@ def read_mpr(file: Union[str, Path], unscale: bool = False):
 
 
 def split_fieldname(fieldname: str):
+    """Parse field name into name and unit components.
+    
+    Splits field names formatted as 'name/unit' into separate components by finding
+    the last slash separator.
+    
+    :param str fieldname: Field name, formatted as 'name/unit'
+    :return: Tuple of (name, unit). If no unit is present, returns (fieldname, None)
+    :rtype: tuple(str, str or None)
+    """
     # Find last slash separator
     index = fieldname[::-1].find('/')
     if index == -1:
@@ -33,6 +51,15 @@ def split_fieldname(fieldname: str):
 
 
 def split_unit(unit: Union[str, None]):
+    """Extract SI prefix from a unit string.
+    
+    Separates SI unit prefixes (m, k, M, G, n, μ) from base units.
+    
+    :param unit: Unit string, possibly with SI prefix (e.g., 'mA', 'kV', 'μF')
+    :type unit: str or None
+    :return: Tuple of (prefix, base_unit). Returns (None, None) for None input
+    :rtype: tuple(str or None, str or None)
+    """
     if unit is None:
         return None, None
     elif len(unit) > 1 and unit[0] in units.ALL_PREFIXES:
@@ -46,6 +73,15 @@ def split_unit(unit: Union[str, None]):
 
 
 def unscale_data(data: ndarray):
+    """Convert all scaled units in a structured numpy array to base SI units.
+    
+    Removes SI prefixes from field names and scales the corresponding data values.
+    For example, converts 'I/mA' field to 'I/A' and multiplies values by 1e-3.
+    
+    :param ndarray data: Structured numpy array with field names formatted as 'name/unit'
+    :return: Structured array with all units converted to base SI units (no prefixes)
+    :rtype: ndarray
+    """
     # TODO: consider precision loss?
     # Determine prefixes and base units
     fieldnames = list(data.dtype.fields.keys())

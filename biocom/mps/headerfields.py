@@ -503,8 +503,8 @@ DxDq = HeaderField("for DX = 1, DQ = ", units="mA.h", separator="")
 BatteryCapacity = HeaderField("Battery capacity", units=HeaderFieldUnit("mA.h", scale_value=True, factor_range=(1e-6, 1)))
 
 # Corrosion fields
-EquivalentWeight = HeaderField("Equivalent Weight", units="g/eq.")
-Density = HeaderField("Density", units="g/cm3")
+EquivalentWeight = HeaderField("Equivalent Weight", units=HeaderFieldUnit("g/eq."))
+Density = HeaderField("Density", units=HeaderFieldUnit("g/cm3"))
 
 
 # Materials fields

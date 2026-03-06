@@ -34,7 +34,7 @@ class HeaderFieldUnit(NamedTuple):
     :param include_centi_deci: Whether to include centi/deci prefixes
     :type include_centi_deci: bool
     """
-    text: str
+    text: str | None
     unit_exponent: int = 1
     scale_value: bool = False
     factor_range: Optional[Tuple[float, float]] = None
@@ -64,14 +64,19 @@ class HeaderField(object):
     def __init__(
             self, 
             label: str, 
-            units: Optional[HeaderFieldUnit] = None,
+            units: Optional[HeaderFieldUnit | str] = None,
             separator: str = ' : ', 
             precision: int = 3,
             add_linebreak: bool = False,
             devices: Optional[List[BLDeviceModel]] = None
                  ) -> None:
         self.label = label
-        self.units = units
+        if isinstance(units, str):
+            self.units = HeaderFieldUnit(units)
+        elif units is None:
+            self.units = HeaderFieldUnit("")
+        else:
+            self.units = units
         self.separator = separator
         self.precision = precision
         self.add_linebreak = add_linebreak
@@ -91,7 +96,7 @@ class HeaderField(object):
                 return False
         return True
         
-    def __call__(self, value, device: BLDeviceModel) -> str:
+    def __call__(self, value, device: BLDeviceModel) -> str | None:
         """Format field as text string for MPS file.
         
         :param value: Value to format
@@ -107,7 +112,7 @@ class HeaderField(object):
         
         # For float values, scale the value and apply unit prefix
         formatted_value = value
-        unit_string = self.units.text if self.units is not None else ""
+        unit_string = self.units.text
         
         if isinstance(value, float) and self.units.scale_value == True:
             scaled_value, prefix_char = units.get_scaled_value_and_prefix(value, *self.units.factor_range, self.units.unit_exponent, self.units.include_centi_deci)
@@ -158,7 +163,7 @@ class OptionalField(HeaderField):
         super().__init__(label, units, separator, precision, add_linebreak, devices)
         self.default_value = default_value
         
-    def __call__(self, value, device: BLDeviceModel) -> str:
+    def __call__(self, value, device: BLDeviceModel) -> str | None:
         if value == self.default_value:
             return None
         return super().__call__(value, device)
@@ -177,7 +182,7 @@ class CheckboxField(HeaderField):
     """
     # For fields that appear only if a box is checked
     # and specify a variable value
-    def __call__(self, value, device: BLDeviceModel) -> str:
+    def __call__(self, value, device: BLDeviceModel) -> str | None:
         if value is None:
             # value of None indicates that box is not checked
             return None
@@ -204,7 +209,7 @@ class BooleanCheckboxField(HeaderField):
             devices: List[BLDeviceModel] | None = None) -> None:
         super().__init__(label, None, "", 1, add_linebreak, devices)
         
-    def __call__(self, value: bool, device: BLDeviceModel) -> str:
+    def __call__(self, value: bool, device: BLDeviceModel) -> str | None:
         """Format boolean checkbox field.
         
         :param value: True if checked, False otherwise
@@ -244,7 +249,7 @@ class MultilineField(HeaderField):
     Each line begins with the field label. Input can be either a list
     of strings or a single string with newline characters.
     """
-    def __call__(self, value: Union[str, list], device: BLDeviceModel) -> str:
+    def __call__(self, value: Union[str, list], device: BLDeviceModel) -> str | None:
         """Format multi-line field.
         
         Value can either be a list of strings (each on its own line)
@@ -311,7 +316,7 @@ class RangeField(HeaderField):
         self.max_label = max_label
         self.range_units = units
         
-    def __call__(self, min_val, max_val, device: BLDeviceModel) -> str:
+    def __call__(self, min_val, max_val, device: BLDeviceModel) -> str | None:
         units = '' if self.range_units is None else f' {self.range_units}'
         
         value_text = "{}{}{}{}{}{}{}".format(
@@ -350,7 +355,7 @@ class MultivalueField(HeaderField):
     def __init__(self, label: str, 
                  value_labels: List[str],
                  value_separators: List[str],
-                 value_units: List[str],
+                 value_units: List[str | None],
                  separator: str = ' : ',
                  precision: int = 3,
                  add_linebreak: bool = False,
@@ -387,9 +392,9 @@ class MultivalueField(HeaderField):
 # -----------------------
 NumTechniques = HeaderField("Number of linked techniques", add_linebreak=True)
 
-SoftwareVersion = HeaderField("EC-LAB for windows v", units=HeaderFieldUnit("(software)"), separator="")
-InternetServerVersion = HeaderField("Internet server v", units=HeaderFieldUnit("(firmware)"), separator="")
-CommandInterpreterVersion = HeaderField("Command interpretor v", units=HeaderFieldUnit("(firmware)"), separator="", add_linebreak=True)
+SoftwareVersion = HeaderField("EC-LAB for windows v", units="(software)", separator="")
+InternetServerVersion = HeaderField("Internet server v", units="(firmware)", separator="")
+CommandInterpreterVersion = HeaderField("Command interpretor v", units="(firmware)", separator="", add_linebreak=True)
 
 SettingsFilename = PathField("Filename", add_linebreak=True)
 
@@ -448,7 +453,7 @@ RecordEISQuality = BooleanCheckboxField("Record EIS quality indicators")
 CreateOneFilePerLoop = BooleanCheckboxField("Create one data file per loop")
 
 # Cycle definition
-CycleDefinitionField = HeaderField("Cycle Definition", units=HeaderFieldUnit("alternance"))
+CycleDefinitionField = HeaderField("Cycle Definition", units="alternance")
 
 
 TurnToOCV = HeaderField("", separator="")
@@ -493,18 +498,18 @@ ActiveMass = MultivalueField(
     "Mass of active material", 
     value_labels=["", "at x = "],
     value_separators=["\n "],
-    value_units=[HeaderFieldUnit("mg"), None]
+    value_units=["mg", None]
 )
-MolecularWeight = HeaderField("Molecular weight of active material (at x = 0)", units=HeaderFieldUnit("g/mol"))
-AtomicWeight = HeaderField("Atomic weight of intercalated ion", units=HeaderFieldUnit("g/mol"))
+MolecularWeight = HeaderField("Molecular weight of active material (at x = 0)", units="g/mol")
+AtomicWeight = HeaderField("Atomic weight of intercalated ion", units="g/mol")
 AcquisitionStart = HeaderField("Acquisition started at : xo = ", separator="")
 NumElectrons = HeaderField("Number of e- transfered per intercalated ion", precision=0)
 DxDq = HeaderField("for DX = 1, DQ = ", units="mA.h", separator="")
 BatteryCapacity = HeaderField("Battery capacity", units=HeaderFieldUnit("mA.h", scale_value=True, factor_range=(1e-6, 1)))
 
 # Corrosion fields
-EquivalentWeight = HeaderField("Equivalent Weight", units=HeaderFieldUnit("g/eq."))
-Density = HeaderField("Density", units=HeaderFieldUnit("g/cm3"))
+EquivalentWeight = HeaderField("Equivalent Weight", units="g/eq.")
+Density = HeaderField("Density", units="g/cm3")
 
 
 # Materials fields

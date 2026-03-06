@@ -121,7 +121,10 @@ class StepwiseTechniqueParameters(TechniqueParameters):
         
         if not isiterable(vals) or isinstance(vals, str):
             # Convert scalar to list
-            vals = [vals or replace_none] * self.num_steps
+            if vals is None:
+                vals = [replace_none] * self.num_steps
+            else:
+                vals = [vals] * self.num_steps
         elif replace_none is not None:
             # Replace Nones
             vals = [v if v is not None else replace_none for v in vals]

@@ -4,14 +4,9 @@
 * Use EC-Lab as a server to load, execute, and stop experiments via Python
 * Asynchronously control/monitor multiple channels or devices
 
-## Why OLECOM control?
-The OLECOM interface allows you to execute experiments through EC-Lab, which ensures that the firmware and collected data are the same as when using the graphical user interface. It is also possible to interface directly with the instrument using the EC-Lab Development Package (see, for example, [easy-biologic](https://github.com/bicarlsen/easy-biologic)). However, this loads different firmware to the instrument, which in my experience results in a lower signal-to-noise ratio for certain experiments compared to the standard firmware.
+For installation, documentation, and citation see Jake Huang's upstream directory
 
-## Installation and setup
-You can install `biologic-com` by downloading or cloning the repository and then installing it with pip or conda. I would recommend creating a fresh environment with the required packages for best results.
-
-To use `biologic-com` to control EC-Lab, you first need to register EC-Lab as an OLECOM server by following the procedure in Section 2 of the included OLECOM PDF manual.
-
-## Documentation
-Example scripts for mps file creation and measurement execution are provided in the examples folder.
-
+## Differences to upstream repository
+* Support for WAIT and EXTAPP techniques
+* Enhanced unit handling (capable of treating units with exponentials different than 1)
+* Enhanced support for cell characterics fields

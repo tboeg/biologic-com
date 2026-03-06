@@ -19,9 +19,22 @@ class UnitPrefix(object):
         'm': 1e-3,
         'mu': 1e-6,
         'n': 1e-9
-    }
+        }
+
+    scale_map_c_d = {
+        'G': 1e9,
+        'M': 1e6,
+        'k': 1e3,
+        '': 1,
+        'd': 1e-1,
+        'c': 1e-2,
+        'm': 1e-3,
+        'mu': 1e-6,
+        'n': 1e-9
+        }
 
     reverse_scale_map = {v: k for k, v in scale_map.items()}
+    reverse_scale_map_c_d = {v: k for k, v in scale_map_c_d.items()}
 
     chr_map = {
         'mu': 181
@@ -35,7 +48,8 @@ class UnitPrefix(object):
         :param str prefix: Unit prefix string (e.g., 'k', 'm', 'mu') or special character (e.g., 'μ')
         :raises ValueError: If prefix is not recognized
         """
-        if prefix not in self.scale_map.keys():
+
+        if prefix not in self.scale_map_c_d.keys():
             try:
                 # Look up special characters
                 prefix = self.reverse_char_map[prefix]
@@ -44,7 +58,7 @@ class UnitPrefix(object):
         self.prefix = prefix
 
     @classmethod
-    def from_value(cls, value, min_factor=None, max_factor=None):
+    def from_value(cls, value, min_factor=None, max_factor=None, unit_exponent=1, include_centi_deci=False):
         """Select appropriate SI prefix based on the magnitude of a value.
         
         Chooses the largest available scale that is less than or equal to the absolute value.
@@ -52,11 +66,16 @@ class UnitPrefix(object):
         :param float value: Numeric value to determine prefix for
         :param float min_factor: Minimum scale factor to consider, defaults to None
         :param float max_factor: Maximum scale factor to consider, defaults to None
+        :param int exponent: Exponent to apply to value before determining prefix, defaults to 1
+        :param bool include_centi_deci: Whether to include centi/deci prefixes in selection
         :return: UnitPrefix object with appropriate prefix
         :rtype: UnitPrefix
         """
         # Get scale options from largest to smallest
-        scales = list(reversed(sorted(list(cls.reverse_scale_map.keys()))))
+        if include_centi_deci:
+            scales = list(reversed(sorted(list(cls.reverse_scale_map_c_d.keys()))))
+        else:
+            scales = list(reversed(sorted(list(cls.reverse_scale_map.keys()))))
         
         # Limit available scales
         if min_factor is not None:
@@ -70,11 +89,14 @@ class UnitPrefix(object):
             # Set floor on magnitude to ensure that a matching scale is found
             value = max(abs(value), min(scales))
             
-            # Get largest scale that is less than value
-            scale = next(s for s in scales if value >= s)
+            # Determine sign of unit exponent for correct order of scales
+            sign = 1 if unit_exponent >= 0 else -1
+
+            # Get largest scale that is less than value or first/last element of scales depending on the sign of the exponent
+            scale = next((s for s in scales[::sign] if value >= s**unit_exponent), scales[0 if sign == -1 else -1])
 
         # Get corresponding prefix
-        prefix = cls.reverse_scale_map[scale]
+        prefix = cls.reverse_scale_map_c_d[scale]
 
         return cls(prefix)
 
@@ -85,8 +107,8 @@ class UnitPrefix(object):
         :param str prefix: Unit prefix string (must be in scale_map)
         :raises ValueError: If prefix is not valid
         """
-        if prefix not in self.scale_map.keys():
-            raise ValueError(f'Invalid prefix {prefix}. Options: {list(self.scale_map.values())}')
+        if prefix not in self.scale_map_c_d.keys():
+            raise ValueError(f'Invalid prefix {prefix}. Options: {list(self.scale_map_c_d.values())}')
 
         self._prefix = prefix
 
@@ -102,7 +124,7 @@ class UnitPrefix(object):
 
     @property
     def scale(self):
-        return self.scale_map[self.prefix]
+        return self.scale_map_c_d[self.prefix]
 
     @property
     def char(self):
@@ -110,68 +132,73 @@ class UnitPrefix(object):
             return chr(self.chr_map[self.prefix])
         return self.prefix
 
-    def raw_to_scaled(self, raw_value):
+    def raw_to_scaled(self, raw_value, unit_exponent=1):
         """Convert a raw (base unit) value to a scaled (prefixed unit) value.
         
         :param float raw_value: Value in base units
+        :param int unit_exponent: Exponent to apply when scaling (default: 1)
         :return: Value in scaled units, or None if input is None
         :rtype: float or None
         """
         if raw_value is None:
             return None
-        return raw_value / self.scale
+        return raw_value / self.scale**unit_exponent
 
-    def scaled_to_raw(self, scaled_value):
+    def scaled_to_raw(self, scaled_value, unit_exponent=1):
         """Convert a scaled (prefixed unit) value to a raw (base unit) value.
         
         :param float scaled_value: Value in scaled units
+        :param int unit_exponent: Exponent to apply to value when converting back to raw units (default: 1)
         :return: Value in base units, or None if input is None
         :rtype: float or None
         """
         if scaled_value is None:
             return None
-        return scaled_value * self.scale
+        return scaled_value * self.scale**unit_exponent
     
 
-def get_scaled_value(value):
+def get_scaled_value(value, unit_exponent=1):
     """Convert a raw value to an appropriately scaled value with automatic prefix selection.
     
     :param float value: Raw numeric value
+    :param int unit_exponent: Exponent to apply to value before determining prefix (default: 1)
     :return: Scaled value using automatically selected prefix, or original value if not numeric
     :rtype: float
     """
     try:
-        return UnitPrefix.from_value(value).raw_to_scaled(value)
+        return UnitPrefix.from_value(value, exponent=unit_exponent).raw_to_scaled(value, exponent=unit_exponent)
     except TypeError:
         return value
 
-def get_prefix_char(value):
+def get_prefix_char(value, unit_exponent=1):
     """Get the appropriate SI prefix character for a numeric value.
     
     :param float value: Numeric value to determine prefix for
+    :param int unit_exponent: Exponent to apply to value before determining prefix (default: 1)
     :return: Prefix character (e.g., 'k', 'm', 'μ'), or empty string if not numeric
     :rtype: str
     """
     try:
-        return UnitPrefix.from_value(value).char
+        return UnitPrefix.from_value(value, exponent=unit_exponent).char
     except TypeError:
         return ""
     
     
-def get_scaled_value_and_prefix(value, min_factor: float = None, max_factor: float = None) -> Tuple[float, str]:
+def get_scaled_value_and_prefix(value, min_factor: float = None, max_factor: float = None, unit_exponent: int = 1, include_centi_deci: bool = False) -> Tuple[float, str]:
     """Get both scaled value and prefix character for a numeric value.
     
     :param float value: Raw numeric value
     :param float min_factor: Minimum scale factor to consider, defaults to None
     :param float max_factor: Maximum scale factor to consider, defaults to None
+    :param int unit_exponent: Exponent to apply to value before determining prefix (default: 1)
     :return: Tuple of (scaled_value, prefix_char)
     :rtype: Tuple[float, str]
     """
-    unit = UnitPrefix.from_value(value, min_factor=min_factor, max_factor=max_factor)
-    return unit.raw_to_scaled(value), unit.char
+    unit = UnitPrefix.from_value(value, min_factor=min_factor, max_factor=max_factor, unit_exponent=unit_exponent, include_centi_deci=include_centi_deci)
+    return unit.raw_to_scaled(value, unit_exponent=unit_exponent), unit.char
     
 # Enumerate all possible prefix characters
-ALL_PREFIXES = [get_prefix_char(v) for v in UnitPrefix.scale_map.values()]
+ALL_PREFIXES = [get_prefix_char(v) for v in UnitPrefix.scale_map_c_d.values()]
 
  
 class TimeUnit(object):

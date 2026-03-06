@@ -646,11 +646,11 @@ def set_materials_characteristics(
     ):
     """Set materials characterization sample properties.
     
-    :param thickness: Sample thickness (cm, default: 0.0)
+    :param thickness: Sample thickness (m, default: 0.0)
     :type thickness: float
-    :param diameter: Sample diameter (cm, default: 0.0)
+    :param diameter: Sample diameter (m, default: 0.0)
     :type diameter: float
-    :param cell_constant: Cell constant k=t/A (cm⁻¹, default: 0.0)
+    :param cell_constant: Cell constant k=t/A (m⁻¹, default: 0.0)
     :type cell_constant: float
     :param current_settings: Existing configuration to update (optional)
     :type current_settings: Optional[FullConfiguration]
@@ -755,11 +755,14 @@ def set_defaults(
     recording = set_recording_options()
     safety = set_safety_limits()
     
+    # Scan all techniques for largest voltage window
+    v_min = min([technique.v_range_min for technique in technique_sequence if hasattr(technique, "v_range_min")])
+    v_max = max([technique.v_range_max for technique in technique_sequence if hasattr(technique, "v_range_max")])
+
     hardware = set_hardware(
         device,
-        # Take v range from first technique
-        technique_sequence[0].v_range_min,
-        technique_sequence[0].v_range_max,
+        v_min,
+        v_max,
     )
     
     cell = set_cell_characteristics()

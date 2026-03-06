@@ -36,6 +36,21 @@ class SentenceCaseEnum(StrEnum):
     def _generate_next_value_(name: str, start: int, count: int, last_values: list[str]) -> str:
         return to_sentence_case(name)
 
+class LowerCaseEnum(StrEnum):
+    """String enum with automatic lower case conversion.
+    
+    An enumeration where the default value is automatically set to the 
+    entry name converted to lower case.
+    
+    Example:
+        >>> class MyEnum(SentenceCaseEnum):
+        ...     FIRST_OPTION = auto()
+        >>> MyEnum.FIRST_OPTION.value
+        'first option'
+    """
+    @staticmethod
+    def _generate_next_value_(name: str, start: int, count: int, last_values: list[str]) -> str:
+        return name.lower()
 
 EweVs = SentenceCaseEnum('EweVs', ['REF', 'EOC', 'ECTRL', 'EMEAS'])
 # If potential control is set to Ewe-Ece, then REF becomes CE
@@ -161,7 +176,7 @@ class PotentialControl(StrEnum):
     EWE_ECE = "Ewe-Ece"
     
 # TODO: check other cable types
-CableType = SentenceCaseEnum("CableType", ["STANDARD"])
+CableType = LowerCaseEnum("CableType", ["STANDARD"])
     
 class TurnToOCV(StrEnum):
     TRUE  = "Turn to OCV between techniques"

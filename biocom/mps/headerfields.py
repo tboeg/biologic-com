@@ -13,10 +13,32 @@ The module includes field types for:
     - Ranges and multi-value fields
 """
 from pathlib import Path
-from typing import Any, Union, Optional, List
+from typing import Any, Union, Optional, List, NamedTuple, Tuple
 
 from .common import BLDeviceModel, ReferenceElectrode
 from .write_utils import format_value
+from .. import units
+
+
+class HeaderFieldUnit(NamedTuple):
+    """Named tuple describing unit handling for a header field.
+
+    :param text: Unit string (e.g. 'mV', 'g', 'cm')
+    :type text: str
+    :param unit_exponent: Exponent applied to the base unit (e.g. -2 for cm^-2)
+    :type unit_exponent: int
+    :param scale_value: Whether the value should be scaled with SI prefixes
+    :type scale_value: bool
+    :param factor_range: Optional (min, max) factor limits to constrain scaling
+    :type factor_range: Optional[Tuple[float, float]]
+    :param include_centi_deci: Whether to include centi/deci prefixes
+    :type include_centi_deci: bool
+    """
+    text: str
+    unit_exponent: int = 1
+    scale_value: bool = False
+    factor_range: Optional[Tuple[float, float]] = None
+    include_centi_deci: bool = False
 
 class HeaderField(object):
     """Base class for MPS file header fields.
@@ -28,6 +50,8 @@ class HeaderField(object):
     :type label: str
     :param units: Optional unit string to append
     :type units: Optional[str]
+    :param exponent: Exponent to apply when determining unit prefix (default: 1)
+    :type exponent: int
     :param separator: Text between label and value (default: ' : ')
     :type separator: str
     :param precision: Number of decimal places for floats (default: 3)
@@ -40,7 +64,7 @@ class HeaderField(object):
     def __init__(
             self, 
             label: str, 
-            units: Optional[str] = None,
+            units: Optional[HeaderFieldUnit] = None,
             separator: str = ' : ', 
             precision: int = 3,
             add_linebreak: bool = False,
@@ -80,11 +104,20 @@ class HeaderField(object):
         # return None
         if not self.check_device(device):
             return None
-            
-        text = '{}{}{}'.format(self.label, self.separator, format_value(value, self.precision))
         
-        if self.units is not None:
-            text += f' {self.units}'
+        # For float values, scale the value and apply unit prefix
+        formatted_value = value
+        unit_string = self.units.text if self.units is not None else ""
+        
+        if isinstance(value, float) and self.units.scale_value == True:
+            scaled_value, prefix_char = units.get_scaled_value_and_prefix(value, *self.units.factor_range, self.units.unit_exponent, self.units.include_centi_deci)
+            formatted_value = scaled_value
+            unit_string = f"{prefix_char}{self.units.text}"
+        text = '{}{}{}'.format(self.label, self.separator, format_value(formatted_value, self.precision))
+        if unit_string:
+            if unit_string == 'dm³':
+                unit_string = 'L'
+            text += f' {unit_string}'
         
         if self.add_linebreak:
             text += "\n"
@@ -354,9 +387,9 @@ class MultivalueField(HeaderField):
 # -----------------------
 NumTechniques = HeaderField("Number of linked techniques", add_linebreak=True)
 
-SoftwareVersion = HeaderField("EC-LAB for windows v", units="(software)", separator="")
-InternetServerVersion = HeaderField("Internet server v", units="(firmware)", separator="")
-CommandInterpreterVersion = HeaderField("Command interpretor v", units="(firmware)", separator="", add_linebreak=True)
+SoftwareVersion = HeaderField("EC-LAB for windows v", units=HeaderFieldUnit("(software)"), separator="")
+InternetServerVersion = HeaderField("Internet server v", units=HeaderFieldUnit("(firmware)"), separator="")
+CommandInterpreterVersion = HeaderField("Command interpretor v", units=HeaderFieldUnit("(firmware)"), separator="", add_linebreak=True)
 
 SettingsFilename = PathField("Filename", add_linebreak=True)
 
@@ -415,7 +448,7 @@ RecordEISQuality = BooleanCheckboxField("Record EIS quality indicators")
 CreateOneFilePerLoop = BooleanCheckboxField("Create one data file per loop")
 
 # Cycle definition
-CycleDefinitionField = HeaderField("Cycle Definition", units="alternance")
+CycleDefinitionField = HeaderField("Cycle Definition", units=HeaderFieldUnit("alternance"))
 
 
 TurnToOCV = HeaderField("", separator="")
@@ -448,24 +481,26 @@ CableTypeField = HeaderField(
 ReferenceElectrodeField = OptionalField("Reference electrode", 
                                         default_value=ReferenceElectrode.NONE)
 
+# Cell fields
+# TODO: handle superscript? chr(178); 178=int("0x00B2", 0)
+ElectrodeSurfaceArea = HeaderField("Electrode surface area", units=HeaderFieldUnit("m²", unit_exponent=2, scale_value=True, factor_range=(1e-9, 1), include_centi_deci=True))
+CharacteristicMass = HeaderField("Characteristic mass", units=HeaderFieldUnit("g", scale_value=True, factor_range=(1e-6, 1e3)))
+# TODO: handle superscript?: chr(179); 179=int("0x00B3", 0)
+Volume = HeaderField("Volume (V)", units=HeaderFieldUnit("m³", unit_exponent=3, scale_value=True, factor_range=(1e-2, 1), include_centi_deci=True))
+
 # Battery fields
 ActiveMass = MultivalueField(
     "Mass of active material", 
     value_labels=["", "at x = "],
     value_separators=["\n "],
-    value_units=["mg", None]
+    value_units=[HeaderFieldUnit("mg"), None]
 )
-MolecularWeight = HeaderField("Molecular weight of active material (at x = 0)", units="g/mol")
-AtomicWeight = HeaderField("Atomic weight of intercalated ion", units="g/mol")
+MolecularWeight = HeaderField("Molecular weight of active material (at x = 0)", units=HeaderFieldUnit("g/mol"))
+AtomicWeight = HeaderField("Atomic weight of intercalated ion", units=HeaderFieldUnit("g/mol"))
 AcquisitionStart = HeaderField("Acquisition started at : xo = ", separator="")
 NumElectrons = HeaderField("Number of e- transfered per intercalated ion", precision=0)
 DxDq = HeaderField("for DX = 1, DQ = ", units="mA.h", separator="")
-BatteryCapacity = HeaderField("Battery capacity", units="mA.h")
-# TODO: handle superscript? chr(178); 178=int("0x00B2", 0)
-ElectrodeSurfaceArea = HeaderField("Electrode surface area", units="cm²")
-CharacteristicMass = HeaderField("Characteristic mass", units="g")
-# TODO: handle superscript?: chr(179); 179=int("0x00B3", 0)
-Volume = HeaderField("Volume (V)", units="cm³")
+BatteryCapacity = HeaderField("Battery capacity", units=HeaderFieldUnit("mA.h", scale_value=True, factor_range=(1e-6, 1)))
 
 # Corrosion fields
 EquivalentWeight = HeaderField("Equivalent Weight", units="g/eq.")
@@ -473,6 +508,6 @@ Density = HeaderField("Density", units="g/cm3")
 
 
 # Materials fields
-Thickness = HeaderField("Thickness (t)", units="cm")
-Diameter = HeaderField("Diameter (d)", units="cm")
-CellConstant = HeaderField("Cell constant (k=t/A)", units="cm-1")
+Thickness = HeaderField("Thickness (t)", units=HeaderFieldUnit("m", scale_value=True, factor_range=(1e-9, 1), include_centi_deci=True))
+Diameter = HeaderField("Diameter (d)", units=HeaderFieldUnit("m", scale_value=True, factor_range=(1e-9, 1), include_centi_deci=True))
+CellConstant = HeaderField("Cell constant (k=t/A)", units=HeaderFieldUnit("m-1", unit_exponent=-1, scale_value=True, factor_range=(1e-9, 1), include_centi_deci=True))

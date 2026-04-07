@@ -285,6 +285,9 @@ class GCPLParameters(HardwareParameters, _GCPLParameters, StepwiseTechniqueParam
         
         self.listify_attr("E_L", replace_none="pass")
         
+        # Loop
+        self.listify_attr("goto_ns", replace_none=0)
+        self.listify_attr("nc_cycles", replace_none=0)
 
         
         # Checks

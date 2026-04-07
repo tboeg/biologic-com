@@ -113,8 +113,8 @@ class _GCPLParameters(object):
     
     
     # Placeholders
-    goto_ns: int = 0
-    nc_cycles: int = 0
+    goto_ns: Optional[List[int]] = None
+    nc_cycles: Optional[List[int]] = None
     
     technique_name = "Galvanostatic Cycling with Potential Limitation"
     abbreviation = "GCPL"
@@ -302,6 +302,12 @@ class GCPLParameters(HardwareParameters, _GCPLParameters, StepwiseTechniqueParam
             # _param_map is a class attribute, so we need to copy it first
             self._param_map = self._param_map.copy()
             del self._param_map["Ns"]
+
+
+@dataclass
+class GCPL7Parameters(GCPLParameters):
+    technique_name = "Galvanostatic Cycling with Potential Limitation 7"
+    abbreviation = "GCPL7"
             
     
 

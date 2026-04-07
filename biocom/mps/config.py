@@ -207,8 +207,8 @@ class BatteryCharacteristics(object):
     :type x0: float
     :param num_electrons: Number of electrons transferred per ion (default: 1)
     :type num_electrons: int
-    :param capacity_mAh: Battery capacity (mAh, default: 0.0)
-    :type capacity_mAh: float
+    :param capacity: Battery capacity (Ah, default: 0.0)
+    :type capacity: float
     """
     active_mass_mg: float = 0.001
     active_x: float = 0.0
@@ -216,7 +216,7 @@ class BatteryCharacteristics(object):
     ion_at_wt_g: float = 0.001
     x0: float = 0.0
     num_electrons: int = 1
-    capacity_mAh: float = 0.0
+    capacity: float = 0.0
     
 
 @dataclass
@@ -608,7 +608,7 @@ def set_battery_characteristics(
         ion_at_wt_g: float = 0.001,
         x0: float = 0.0,
         num_electrons: int = 1,
-        capacity_mAh: float = 0.0,
+        capacity: float = 0.0,
         current_settings: Optional[FullConfiguration] = None
     ):
     """Set battery-specific sample characteristics.

@@ -198,7 +198,7 @@ class GCPLParameters(HardwareParameters, _GCPLParameters, StepwiseTechniqueParam
         config: BatteryCharacteristics = configuration.sample
         
         # Get theoretical capacity in Ah
-        self._Q_theo = config.capacity_mAh * 1e-3
+        self._Q_theo = config.capacity
         
         self.step_i_A = convert_currents(self.step_currents, self.current_spec, self._Q_theo)
             

@@ -135,7 +135,7 @@ def make_header(
             headerfields.AcquisitionStart(sample_characteristics.x0, device),
             headerfields.NumElectrons(sample_characteristics.num_electrons, device),
             headerfields.DxDq(dqdx, device),
-            headerfields.BatteryCapacity(sample_characteristics.capacity_mAh, device),
+            headerfields.BatteryCapacity(sample_characteristics.capacity, device),
             headerfields.CableTypeField(cell_characteristics.cable, device),
             headerfields.ReferenceElectrodeField(cell_characteristics.ref_electrode, device),
             headerfields.ElectrodeSurfaceArea(cell_characteristics.surface_area, device),

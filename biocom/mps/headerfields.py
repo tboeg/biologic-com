@@ -505,7 +505,7 @@ AtomicWeight = HeaderField("Atomic weight of intercalated ion", units="g/mol")
 AcquisitionStart = HeaderField("Acquisition started at : xo = ", separator="")
 NumElectrons = HeaderField("Number of e- transfered per intercalated ion", precision=0)
 DxDq = HeaderField("for DX = 1, DQ = ", units="mA.h", separator="")
-BatteryCapacity = HeaderField("Battery capacity", units=HeaderFieldUnit("mA.h", scale_value=True, factor_range=(1e-6, 1)))
+BatteryCapacity = HeaderField("Battery capacity", units=HeaderFieldUnit("A.h", scale_value=True, factor_range=(1e-6, 1)))
 
 # Corrosion fields
 EquivalentWeight = HeaderField("Equivalent Weight", units="g/eq.")

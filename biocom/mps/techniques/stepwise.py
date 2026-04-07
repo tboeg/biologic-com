@@ -34,7 +34,7 @@ def process_list_values(vals: list, base_unit: Optional[str], replace_none=None)
     if replace_none is not None:
         # Replace Nones with specified value
         scaled_vals = [v or replace_none for v in scaled_vals]
-        
+    
     return scaled_vals, unit
     
     
@@ -105,7 +105,7 @@ class StepwiseTechniqueParameters(TechniqueParameters):
         return ''.join(str_list)
     
     
-    def listify_attr(self, name: str, base_unit: str = None, replace_none=None):
+    def listify_attr(self, name: str, base_unit: Optional[str] = None, replace_none = None):
         """Format stepwise attribute as list.
 
         :param str name: Attribute name.

@@ -625,8 +625,8 @@ def set_battery_characteristics(
     :type x0: float
     :param num_electrons: Electrons transferred per ion (default: 1)
     :type num_electrons: int
-    :param capacity_mAh: Battery capacity (mAh, default: 0.0)
-    :type capacity_mAh: float
+    :param capacity: Battery capacity (Ah, default: 0.0)
+    :type capacity: float
     :param current_settings: Existing configuration to update (optional)
     :type current_settings: Optional[FullConfiguration]
     :return: Battery characteristics instance

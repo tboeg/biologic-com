@@ -18,7 +18,8 @@ class UnitPrefix(object):
         '': 1,
         'm': 1e-3,
         'mu': 1e-6,
-        'n': 1e-9
+        'n': 1e-9,
+        'p': 1e-12,
         }
 
     scale_map_c_d = {
@@ -30,7 +31,8 @@ class UnitPrefix(object):
         'c': 1e-2,
         'm': 1e-3,
         'mu': 1e-6,
-        'n': 1e-9
+        'n': 1e-9,
+        'p': 1e-12,
         }
 
     reverse_scale_map = {v: k for k, v in scale_map.items()}
@@ -166,7 +168,7 @@ def get_scaled_value(value, unit_exponent=1):
     :rtype: float
     """
     try:
-        return UnitPrefix.from_value(value, exponent=unit_exponent).raw_to_scaled(value, exponent=unit_exponent)
+        return UnitPrefix.from_value(value, unit_exponent=unit_exponent).raw_to_scaled(value, unit_exponent=unit_exponent)
     except TypeError:
         return value
 
@@ -179,12 +181,12 @@ def get_prefix_char(value, unit_exponent=1):
     :rtype: str
     """
     try:
-        return UnitPrefix.from_value(value, exponent=unit_exponent).char
+        return UnitPrefix.from_value(value, unit_exponent=unit_exponent).char
     except TypeError:
         return ""
     
     
-def get_scaled_value_and_prefix(value, min_factor: float = None, max_factor: float = None, unit_exponent: int = 1, include_centi_deci: bool = False) -> Tuple[float, str]:
+def get_scaled_value_and_prefix(value, min_factor: Optional[float] = None, max_factor: Optional[float] = None, unit_exponent: int = 1, include_centi_deci: bool = False) -> Tuple[float, str]:
     """Get both scaled value and prefix character for a numeric value.
     
     :param float value: Raw numeric value

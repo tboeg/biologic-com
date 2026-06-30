@@ -92,11 +92,13 @@ ChannelGrounding = SentenceCaseEnum("ChannelGrounding", ["FLOATING", "GROUNDED"]
 class IRange(StrEnum):
     """Current range settings for BioLogic devices.
     
-    Defines available current ranges from 10 nA to 1 A, with automatic
+    Defines available current ranges from 100 pA to 1 A, with automatic
     range selection options.
     
     :cvar AUTO: Automatic range selection
     :cvar AUTOLIMIT: Automatic with limits
+    :cvar p100: 100 pA range
+    :cvar n1: 1 nA range
     :cvar n10: 10 nA range
     :cvar n100: 100 nA range
     :cvar u1: 1 µA range
@@ -109,6 +111,8 @@ class IRange(StrEnum):
     """
     AUTO      = "Auto"
     AUTOLIMIT = "Auto Limited"
+    p100      = "100 pA"
+    n1        = "1 nA"
     n10       = "10 nA"
     n100      = "100 nA"
     u1        = f"1 {chr(181)}A"
@@ -327,13 +331,14 @@ def get_i_range(i_max: float):
     :return: Appropriate current range setting
     :rtype: IRange
     """
+    #TODO: consider low current option (down to 100 pA)
     i_max = abs(i_max)
     
-    if i_max < 1e-8:
-        return IRange.n10
-    elif i_max < 1e-7:
-        return IRange.n100
-    elif i_max < 1e-6:
+    # if i_max < 1e-8:
+    #     return IRange.n10
+    # elif i_max < 1e-7:
+    #     return IRange.n100
+    if i_max < 1e-6:
         return IRange.u1
     elif i_max < 10e-6:
         return IRange.u10
